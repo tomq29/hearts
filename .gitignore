@@ -20,6 +20,10 @@ node_modules/
 .idea/
 *.swp
 *.swo
+*.tsbuildinfo
+
+# Frontend
+.tanstack/
 
 # OS
 .DS_Store
@@ -35,3 +39,5 @@ docker-compose.override.yml
 # Testing Output
 coverage/
 *.out
+ws_*.txt
+test_*.txt

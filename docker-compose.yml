@@ -1,0 +1,93 @@
+version: '3.8'
+
+services:
+  api:
+    build:
+      context: ./apps/api
+      dockerfile: Dockerfile
+    container_name: hearts_api
+    ports:
+      - "8080:8080"
+    environment:
+      - HEARTS_DATABASE_URL=postgres://postgres:password@postgres:5432/hearts?sslmode=disable
+      - HEARTS_STORAGE_ENDPOINT=minio:9000
+      - HEARTS_STORAGE_ACCESS_KEY_ID=minioadmin
+      - HEARTS_STORAGE_SECRET_ACCESS_KEY=minioadmin
+      - HEARTS_STORAGE_USE_SSL=false
+      - HEARTS_STORAGE_BUCKET_NAME=hearts-photos
+      - HEARTS_STORAGE_LOCATION=us-east-1
+      - JWT_SECRET_KEY=supersecretkey
+      - KAFKA_BROKERS=kafka:9092
+    depends_on:
+      postgres:
+        condition: service_started
+      minio:
+        condition: service_started
+      kafka:
+        condition: service_started
+
+  notification-service:
+    build:
+      context: ./apps/notification-service
+      dockerfile: Dockerfile
+    container_name: hearts_notification_service
+    ports:
+      - "8081:8081"
+    depends_on:
+      kafka:
+        condition: service_started
+    environment:
+      - KAFKA_BROKERS=kafka:9092
+      - PORT=8081
+
+  minio:
+    image: minio/minio:latest
+    container_name: hearts_minio
+    ports:
+      - "9000:9000"
+      - "9001:9001"
+    environment:
+      MINIO_ROOT_USER: minioadmin
+      MINIO_ROOT_PASSWORD: minioadmin
+    command: server /data --console-address ":9001"
+    volumes:
+      - minio_data:/data
+
+  postgres:
+    image: postgres:15-alpine
+    container_name: hearts_postgres
+    ports:
+      - "5433:5432"
+    environment:
+      POSTGRES_USER: postgres
+      POSTGRES_PASSWORD: password
+      POSTGRES_DB: hearts
+    volumes:
+      - postgres_data:/var/lib/postgresql/data
+
+  zookeeper:
+    image: confluentinc/cp-zookeeper:7.3.0
+    container_name: hearts_zookeeper
+    environment:
+      ZOOKEEPER_CLIENT_PORT: 2181
+      ZOOKEEPER_TICK_TIME: 2000
+
+  kafka:
+    image: confluentinc/cp-kafka:7.3.0
+    container_name: hearts_kafka
+    ports:
+      - "9092:9092"
+    depends_on:
+      - zookeeper
+    environment:
+      KAFKA_BROKER_ID: 1
+      KAFKA_ZOOKEEPER_CONNECT: 'zookeeper:2181'
+      KAFKA_LISTENER_SECURITY_PROTOCOL_MAP: PLAINTEXT:PLAINTEXT,PLAINTEXT_INTERNAL:PLAINTEXT
+      KAFKA_ADVERTISED_LISTENERS: PLAINTEXT://localhost:9092,PLAINTEXT_INTERNAL://kafka:29092
+      KAFKA_OFFSETS_TOPIC_REPLICATION_FACTOR: 1
+      KAFKA_TRANSACTION_STATE_LOG_MIN_ISR: 1
+      KAFKA_TRANSACTION_STATE_LOG_REPLICATION_FACTOR: 1
+
+volumes:
+  minio_data:
+  postgres_data:

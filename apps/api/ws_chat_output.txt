@@ -1,0 +1,3 @@
+2025/12/01 02:39:54 connecting to ws://localhost:8080/ws?token=eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJ1c2VySWQiOiJkY2E5MjhmMy0zMjdhLTQ0OTQtOTVjOS1mOTcyYzFjYzkzNTgiLCJpc3MiOiJoZWFydHMtYXBpIiwiZXhwIjoxNzY0NTQ2ODkyLCJpYXQiOjE3NjQ1NDU5OTJ9.TT4KL470hyPg8olEzFzbSjYmalyz3b4hylVqy0F60fU
+2025/12/01 02:39:56 recv: {"message":{"id":"c64a5f32-25b8-459c-a7e2-159ce1550390","senderId":"cad50154-6aee-424c-8a9d-1de4323e7f0e","receiverId":"dca928f3-327a-4494-95c9-f972c1cc9358","content":"Hello Bob!","isRead":false,"createdAt":"2025-12-01T02:39:56.819825+03:00"},"type":"chat"}
+2025/12/01 02:40:00 read: websocket: close 1006 (abnormal closure): unexpected EOF

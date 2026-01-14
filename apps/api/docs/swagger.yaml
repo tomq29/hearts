@@ -1,0 +1,451 @@
+basePath: /api/v1
+definitions:
+  handler.LikeResponse:
+    properties:
+      isMatch:
+        type: boolean
+    type: object
+  handler.LoginInput:
+    properties:
+      email:
+        type: string
+      password:
+        type: string
+    type: object
+  handler.LoginResponse:
+    properties:
+      accessToken:
+        type: string
+    type: object
+  handler.RegisterInput:
+    properties:
+      email:
+        type: string
+      password:
+        type: string
+      username:
+        type: string
+    type: object
+  handler.UploadPhotoResponse:
+    properties:
+      key:
+        type: string
+      url:
+        type: string
+    type: object
+  profile.Profile:
+    properties:
+      bio:
+        type: string
+      createdAt:
+        type: string
+      firstName:
+        type: string
+      id:
+        type: string
+      photos:
+        items:
+          type: string
+        type: array
+      selfDescribedFlaws:
+        items:
+          type: string
+        type: array
+      selfDescribedStrengths:
+        items:
+          type: string
+        type: array
+      updatedAt:
+        type: string
+      userId:
+        type: string
+    type: object
+  service.CreateProfileInput:
+    properties:
+      bio:
+        type: string
+      firstName:
+        type: string
+      photos:
+        items:
+          type: string
+        type: array
+      selfDescribedFlaws:
+        items:
+          type: string
+        type: array
+      selfDescribedStrengths:
+        items:
+          type: string
+        type: array
+    type: object
+  service.LikeInput:
+    properties:
+      isLike:
+        type: boolean
+      targetId:
+        type: string
+    type: object
+  service.UpdateProfileInput:
+    properties:
+      bio:
+        type: string
+      firstName:
+        type: string
+      photos:
+        items:
+          type: string
+        type: array
+      selfDescribedFlaws:
+        items:
+          type: string
+        type: array
+      selfDescribedStrengths:
+        items:
+          type: string
+        type: array
+    type: object
+  user.User:
+    properties:
+      createdAt:
+        type: string
+      email:
+        type: string
+      id:
+        type: string
+      username:
+        type: string
+    type: object
+host: localhost:8080
+info:
+  contact:
+    email: support@swagger.io
+    name: API Support
+    url: http://www.swagger.io/support
+  description: This is the API for the Hearts dating application.
+  license:
+    name: Apache 2.0
+    url: http://www.apache.org/licenses/LICENSE-2.0.html
+  termsOfService: http://swagger.io/terms/
+  title: Hearts API
+  version: "1.0"
+paths:
+  /auth/refresh:
+    post:
+      description: Refresh the access token using the refresh token cookie.
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            $ref: '#/definitions/handler.LoginResponse'
+        "401":
+          description: Unauthorized
+          schema:
+            type: string
+      summary: Refresh access token
+      tags:
+      - auth
+  /likes:
+    post:
+      consumes:
+      - application/json
+      description: Like or pass a user. Returns isMatch=true if it's a mutual like.
+      parameters:
+      - description: Like input
+        in: body
+        name: input
+        required: true
+        schema:
+          $ref: '#/definitions/service.LikeInput'
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            $ref: '#/definitions/handler.LikeResponse'
+        "400":
+          description: Invalid request body or self-like
+          schema:
+            type: string
+        "401":
+          description: Unauthorized
+          schema:
+            type: string
+        "500":
+          description: Internal server error
+          schema:
+            type: string
+      security:
+      - ApiKeyAuth: []
+      summary: Like or pass a user
+      tags:
+      - likes
+  /matches:
+    get:
+      description: Get a list of profiles that the user has matched with.
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            items:
+              $ref: '#/definitions/profile.Profile'
+            type: array
+        "401":
+          description: Unauthorized
+          schema:
+            type: string
+        "500":
+          description: Internal server error
+          schema:
+            type: string
+      security:
+      - ApiKeyAuth: []
+      summary: Get matches
+      tags:
+      - likes
+  /profiles:
+    post:
+      consumes:
+      - application/json
+      description: Create a new profile for the authenticated user.
+      parameters:
+      - description: Profile creation input
+        in: body
+        name: input
+        required: true
+        schema:
+          $ref: '#/definitions/service.CreateProfileInput'
+      produces:
+      - application/json
+      responses:
+        "201":
+          description: Created
+          schema:
+            $ref: '#/definitions/profile.Profile'
+        "400":
+          description: Invalid request body
+          schema:
+            type: string
+        "401":
+          description: Unauthorized
+          schema:
+            type: string
+        "409":
+          description: Profile already exists
+          schema:
+            type: string
+        "500":
+          description: Internal server error
+          schema:
+            type: string
+      security:
+      - ApiKeyAuth: []
+      summary: Create a profile
+      tags:
+      - profiles
+    put:
+      consumes:
+      - application/json
+      description: Update the authenticated user's profile.
+      parameters:
+      - description: Profile update input
+        in: body
+        name: input
+        required: true
+        schema:
+          $ref: '#/definitions/service.UpdateProfileInput'
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            $ref: '#/definitions/profile.Profile'
+        "400":
+          description: Invalid request body
+          schema:
+            type: string
+        "401":
+          description: Unauthorized
+          schema:
+            type: string
+        "404":
+          description: Profile not found
+          schema:
+            type: string
+        "500":
+          description: Internal server error
+          schema:
+            type: string
+      security:
+      - ApiKeyAuth: []
+      summary: Update a profile
+      tags:
+      - profiles
+  /profiles/{userID}:
+    get:
+      description: Get a user's profile by their user ID.
+      parameters:
+      - description: User ID
+        in: path
+        name: userID
+        required: true
+        type: string
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            $ref: '#/definitions/profile.Profile'
+        "400":
+          description: User ID required
+          schema:
+            type: string
+        "404":
+          description: Profile not found
+          schema:
+            type: string
+        "500":
+          description: Internal server error
+          schema:
+            type: string
+      summary: Get a profile
+      tags:
+      - profiles
+  /profiles/upload:
+    post:
+      consumes:
+      - multipart/form-data
+      description: Upload a photo for the user profile.
+      parameters:
+      - description: Photo file
+        in: formData
+        name: photo
+        required: true
+        type: file
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            $ref: '#/definitions/handler.UploadPhotoResponse'
+        "400":
+          description: Invalid file
+          schema:
+            type: string
+        "401":
+          description: Unauthorized
+          schema:
+            type: string
+        "500":
+          description: Internal server error
+          schema:
+            type: string
+      security:
+      - ApiKeyAuth: []
+      summary: Upload a photo
+      tags:
+      - profiles
+  /users/login:
+    post:
+      consumes:
+      - application/json
+      description: Login a user with email and password.
+      parameters:
+      - description: Login input
+        in: body
+        name: input
+        required: true
+        schema:
+          $ref: '#/definitions/handler.LoginInput'
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            $ref: '#/definitions/handler.LoginResponse'
+        "400":
+          description: Invalid request body
+          schema:
+            type: string
+        "401":
+          description: Unauthorized
+          schema:
+            type: string
+        "500":
+          description: Internal server error
+          schema:
+            type: string
+      summary: Login a user
+      tags:
+      - users
+  /users/me:
+    get:
+      description: Get the profile of the currently authenticated user.
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            $ref: '#/definitions/user.User'
+        "401":
+          description: Unauthorized
+          schema:
+            type: string
+        "404":
+          description: User not found
+          schema:
+            type: string
+        "500":
+          description: Internal server error
+          schema:
+            type: string
+      security:
+      - ApiKeyAuth: []
+      summary: Get current user
+      tags:
+      - users
+  /users/register:
+    post:
+      consumes:
+      - application/json
+      description: Register a new user with email, username, and password.
+      parameters:
+      - description: Registration input
+        in: body
+        name: input
+        required: true
+        schema:
+          $ref: '#/definitions/handler.RegisterInput'
+      produces:
+      - application/json
+      responses:
+        "201":
+          description: Created
+          schema:
+            $ref: '#/definitions/user.User'
+        "400":
+          description: Invalid request body
+          schema:
+            type: string
+        "409":
+          description: Conflict
+          schema:
+            type: string
+        "500":
+          description: Internal server error
+          schema:
+            type: string
+      summary: Register a new user
+      tags:
+      - users
+swagger: "2.0"

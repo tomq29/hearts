@@ -1,0 +1,23 @@
+app:
+  environment: development
+
+server:
+  address: :8080
+
+database:
+  url: postgres://postgres:password@localhost:5433/hearts?sslmode=disable
+  max_connections: 10
+  min_connections: 2
+  max_conn_lifetime: 1h
+
+logger:
+  level: debug
+  mode: development
+
+storage:
+  endpoint: localhost:9000
+  access_key_id: minioadmin
+  secret_access_key: minioadmin
+  use_ssl: false
+  bucket_name: hearts-photos
+  location: us-east-1

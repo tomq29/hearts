@@ -14,6 +14,7 @@ import { Route as ProfileRouteImport } from './routes/profile'
 import { Route as MatchesRouteImport } from './routes/matches'
 import { Route as LoginRouteImport } from './routes/login'
 import { Route as IndexRouteImport } from './routes/index'
+import { Route as ProfileIndexRouteImport } from './routes/profile.index'
 import { Route as ProfileCreateRouteImport } from './routes/profile.create'
 import { Route as ChatMatchIdRouteImport } from './routes/chat.$matchId'
 
@@ -42,6 +43,11 @@ const IndexRoute = IndexRouteImport.update({
   path: '/',
   getParentRoute: () => rootRouteImport,
 } as any)
+const ProfileIndexRoute = ProfileIndexRouteImport.update({
+  id: '/',
+  path: '/',
+  getParentRoute: () => ProfileRoute,
+} as any)
 const ProfileCreateRoute = ProfileCreateRouteImport.update({
   id: '/create',
   path: '/create',
@@ -61,15 +67,16 @@ export interface FileRoutesByFullPath {
   '/register': typeof RegisterRoute
   '/chat/$matchId': typeof ChatMatchIdRoute
   '/profile/create': typeof ProfileCreateRoute
+  '/profile/': typeof ProfileIndexRoute
 }
 export interface FileRoutesByTo {
   '/': typeof IndexRoute
   '/login': typeof LoginRoute
   '/matches': typeof MatchesRoute
-  '/profile': typeof ProfileRouteWithChildren
   '/register': typeof RegisterRoute
   '/chat/$matchId': typeof ChatMatchIdRoute
   '/profile/create': typeof ProfileCreateRoute
+  '/profile': typeof ProfileIndexRoute
 }
 export interface FileRoutesById {
   __root__: typeof rootRouteImport
@@ -80,6 +87,7 @@ export interface FileRoutesById {
   '/register': typeof RegisterRoute
   '/chat/$matchId': typeof ChatMatchIdRoute
   '/profile/create': typeof ProfileCreateRoute
+  '/profile/': typeof ProfileIndexRoute
 }
 export interface FileRouteTypes {
   fileRoutesByFullPath: FileRoutesByFullPath
@@ -91,15 +99,16 @@ export interface FileRouteTypes {
     | '/register'
     | '/chat/$matchId'
     | '/profile/create'
+    | '/profile/'
   fileRoutesByTo: FileRoutesByTo
   to:
     | '/'
     | '/login'
     | '/matches'
-    | '/profile'
     | '/register'
     | '/chat/$matchId'
     | '/profile/create'
+    | '/profile'
   id:
     | '__root__'
     | '/'
@@ -109,6 +118,7 @@ export interface FileRouteTypes {
     | '/register'
     | '/chat/$matchId'
     | '/profile/create'
+    | '/profile/'
   fileRoutesById: FileRoutesById
 }
 export interface RootRouteChildren {
@@ -157,6 +167,13 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof IndexRouteImport
       parentRoute: typeof rootRouteImport
     }
+    '/profile/': {
+      id: '/profile/'
+      path: '/'
+      fullPath: '/profile/'
+      preLoaderRoute: typeof ProfileIndexRouteImport
+      parentRoute: typeof ProfileRoute
+    }
     '/profile/create': {
       id: '/profile/create'
       path: '/create'
@@ -176,10 +193,12 @@ declare module '@tanstack/react-router' {
 
 interface ProfileRouteChildren {
   ProfileCreateRoute: typeof ProfileCreateRoute
+  ProfileIndexRoute: typeof ProfileIndexRoute
 }
 
 const ProfileRouteChildren: ProfileRouteChildren = {
   ProfileCreateRoute: ProfileCreateRoute,
+  ProfileIndexRoute: ProfileIndexRoute,
 }
 
 const ProfileRouteWithChildren =

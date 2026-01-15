@@ -158,6 +158,31 @@ func (h *ProfileHandler) Create(w http.ResponseWriter, r *http.Request) {
 	json.NewEncoder(w).Encode(p)
 }
 
+// GetMe handles retrieving the current user's profile.
+func (h *ProfileHandler) GetMe(w http.ResponseWriter, r *http.Request) {
+	userID, ok := r.Context().Value(auth.UserIDKey).(string)
+	if !ok {
+		http.Error(w, "Unauthorized", http.StatusUnauthorized)
+		return
+	}
+
+	p, err := h.service.GetProfileByUserID(r.Context(), userID)
+	if err != nil {
+		if errors.Is(err, repository.ErrNotFound) {
+			http.Error(w, "Profile not found", http.StatusNotFound)
+			return
+		}
+		h.logger.Error("Failed to get profile", zap.Error(err))
+		http.Error(w, "Internal server error", http.StatusInternalServerError)
+		return
+	}
+
+	h.enrichProfile(r.Context(), p)
+
+	w.Header().Set("Content-Type", "application/json")
+	json.NewEncoder(w).Encode(p)
+}
+
 // Get handles retrieving a profile by user ID.
 // @Summary Get a profile
 // @Description Get a user's profile by their user ID.
@@ -305,6 +330,10 @@ func (h *ProfileHandler) Search(w http.ResponseWriter, r *http.Request) {
 
 	profiles, err := h.service.SearchProfiles(r.Context(), userID, params)
 	if err != nil {
+		if err.Error() == "profile not found" {
+			http.Error(w, "User profile not found. Please create a profile first.", http.StatusNotFound)
+			return
+		}
 		h.logger.Error("Failed to search profiles", zap.Error(err))
 		http.Error(w, "Internal server error", http.StatusInternalServerError)
 		return
@@ -312,6 +341,10 @@ func (h *ProfileHandler) Search(w http.ResponseWriter, r *http.Request) {
 
 	for _, p := range profiles {
 		h.enrichProfile(r.Context(), p)
+	}
+
+	if profiles == nil {
+		profiles = []*profile.Profile{}
 	}
 
 	w.Header().Set("Content-Type", "application/json")

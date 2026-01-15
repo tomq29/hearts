@@ -62,14 +62,14 @@ func NewMinioProvider(cfg Config) (Provider, error) {
 		if err != nil {
 			return nil, fmt.Errorf("failed to create bucket: %w", err)
 		}
+	}
 
-		// Set bucket policy to public read (optional, depending on requirements)
-		// For now, we'll stick to presigned URLs or direct access if public.
-		// policy := `{"Version": "2012-10-17","Statement": [{"Action": ["s3:GetObject"],"Effect": "Allow","Principal": {"AWS": ["*"]},"Resource": ["arn:aws:s3:::` + cfg.BucketName + `/*"],"Sid": ""}]}`
-		// err = minioClient.SetBucketPolicy(ctx, cfg.BucketName, policy)
-		// if err != nil {
-		// 	 return nil, fmt.Errorf("failed to set bucket policy: %w", err)
-		// }
+	// Set bucket policy to public read
+	policy := `{"Version": "2012-10-17","Statement": [{"Action": ["s3:GetObject"],"Effect": "Allow","Principal": {"AWS": ["*"]},"Resource": ["arn:aws:s3:::` + cfg.BucketName + `/*"],"Sid": ""}]}`
+	err = minioClient.SetBucketPolicy(ctx, cfg.BucketName, policy)
+	if err != nil {
+		// Log warning but don't fail, in case of permission issues or non-MinIO S3
+		fmt.Printf("Warning: failed to set bucket policy: %v\n", err)
 	}
 
 	return provider, nil
@@ -91,14 +91,36 @@ func (p *minioProvider) Upload(ctx context.Context, file io.Reader, fileSize int
 }
 
 func (p *minioProvider) GetPresignedURL(ctx context.Context, fileName string) (string, error) {
-	// Set request parameters for content-disposition.
-	reqParams := make(url.Values)
-	// reqParams.Set("response-content-disposition", "attachment; filename=\""+fileName+"\"")
-
-	// Generates a presigned url which expires in a day.
-	presignedURL, err := p.client.PresignedGetObject(ctx, p.bucketName, fileName, time.Hour*24, reqParams)
-	if err != nil {
-		return "", fmt.Errorf("failed to generate presigned url: %w", err)
+	// SANITY CHECK: If the fileName already looks like a URL, don't double-wrap it.
+	// This happens because the frontend sends back the full URL in update requests,
+	// and if the backend saves it blindly, we end up recursively wrapping URLs.
+	if len(fileName) > 4 && fileName[:4] == "http" {
+		// It's already a URL. Just return it, or ensure localhost.
+		u, err := url.Parse(fileName)
+		if err == nil {
+			if u.Hostname() == "minio" || u.Hostname() == "minioadmin" {
+				u.Host = "localhost:9000"
+			}
+			return u.String(), nil
+		}
+		// If parse fails, proceed to treat it as a key (unlikely but safe fallback)
 	}
-	return presignedURL.String(), nil
+
+	// Generates a URL. Since the bucket is public, we don't strictly need a presigned URL with signature,
+	// but we use the SDK to generate the correct object path and then strip the signature.
+	u, err := p.client.PresignedGetObject(ctx, p.bucketName, fileName, time.Hour*24, nil)
+	if err != nil {
+		return "", fmt.Errorf("failed to generate url: %w", err)
+	}
+
+	// Hack for Docker: The API sees "minio:9000", but the browser needs "localhost:9000"
+	if u.Hostname() == "minio" || u.Hostname() == "minioadmin" {
+		u.Host = "localhost:9000"
+	}
+
+	// Since we made the bucket public, we can strip the query parameters (authentication signature).
+	// This avoids 403 errors caused by Host header mismatch (internal 'minio' vs external 'localhost').
+	u.RawQuery = ""
+
+	return u.String(), nil
 }

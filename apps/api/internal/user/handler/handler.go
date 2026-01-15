@@ -8,6 +8,7 @@ import (
 
 	"go.uber.org/zap"
 
+	"github.com/kisssonik/hearts/internal/user"
 	"github.com/kisssonik/hearts/internal/user/repository"
 	"github.com/kisssonik/hearts/internal/user/service"
 	"github.com/kisssonik/hearts/pkg/auth"
@@ -18,6 +19,11 @@ type RegisterInput struct {
 	Email    string `json:"email"`
 	Username string `json:"username"`
 	Password string `json:"password"`
+}
+
+type RegisterResponse struct {
+	User        *user.User `json:"user"`
+	AccessToken string     `json:"accessToken"`
 }
 
 // LoginInput represents the input for login.
@@ -88,9 +94,35 @@ func (h *UserHandler) Register(w http.ResponseWriter, r *http.Request) {
 	}
 
 	h.logger.Info("User registered successfully", zap.String("userID", user.ID))
+
+	// Auto-login after registration
+	loginResp, err := h.service.Login(r.Context(), input.Email, input.Password)
+	if err != nil {
+		h.logger.Error("Auto-login failed after registration", zap.Error(err))
+		// Fallback: return success but force user to login manually.
+		w.Header().Set("Content-Type", "application/json")
+		w.WriteHeader(http.StatusCreated)
+		json.NewEncoder(w).Encode(user)
+		return
+	}
+
+	// Set the refresh token in a secure, HttpOnly cookie
+	http.SetCookie(w, &http.Cookie{
+		Name:     "refreshToken",
+		Value:    loginResp.RefreshToken,
+		Expires:  time.Now().Add(auth.RefreshTokenCookieLifetime),
+		HttpOnly: true,
+		Secure:   true,                   // Should be true in production
+		Path:     "/api/v1/auth/refresh", // Make sure this path is correct for your refresh endpoint
+		SameSite: http.SameSiteLaxMode,
+	})
+
 	w.Header().Set("Content-Type", "application/json")
 	w.WriteHeader(http.StatusCreated)
-	json.NewEncoder(w).Encode(user)
+	json.NewEncoder(w).Encode(RegisterResponse{
+		User:        user,
+		AccessToken: loginResp.AccessToken,
+	})
 }
 
 // Login is the handler for user authentication.

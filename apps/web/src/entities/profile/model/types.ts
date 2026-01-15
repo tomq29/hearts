@@ -7,4 +7,5 @@ export interface Profile {
   height?: number
   bio?: string
   photos: string[]
+  interactionType?: 'like' | 'pass' | null
 }

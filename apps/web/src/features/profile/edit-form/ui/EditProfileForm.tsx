@@ -2,6 +2,7 @@ import { useForm } from "react-hook-form";
 import { zodResolver } from "@hookform/resolvers/zod";
 import { useState, useEffect } from "react";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
+import { useNavigate } from "@tanstack/react-router";
 import { uploadPhoto } from "@/shared/api";
 import { getErrorMessage } from "@/shared/lib/error";
 import {
@@ -13,6 +14,7 @@ import {
 
 export const EditProfileForm = () => {
   const queryClient = useQueryClient();
+  const navigate = useNavigate();
   const [uploading, setUploading] = useState(false);
   const [photoUrls, setPhotoUrls] = useState<string[]>([]);
 
@@ -106,7 +108,6 @@ export const EditProfileForm = () => {
       setPhotoUrls([...photoUrls, url]);
     } catch (err) {
       console.error("Upload failed", err);
-      alert("Failed to upload photo");
     } finally {
       setUploading(false);
     }
@@ -121,7 +122,7 @@ export const EditProfileForm = () => {
       }),
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ["my-profile"] });
-      alert("Profile updated!");
+      navigate({ to: "/profile" });
     },
   });
 

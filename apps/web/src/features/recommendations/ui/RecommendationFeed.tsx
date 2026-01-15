@@ -1,5 +1,7 @@
 import { useInfiniteQuery } from "@tanstack/react-query";
 import { useEffect } from "react";
+import { Link } from "@tanstack/react-router";
+import axios from "axios";
 import { getRecommendations } from "../api/getRecommendations";
 import { ProfileCard } from "@/entities/profile";
 import { getErrorMessage } from "@/shared/lib/error";
@@ -45,6 +47,24 @@ export const RecommendationFeed = () => {
   }
 
   if (isError) {
+    // Check if error is 404 (Profile Not Found)
+    if (axios.isAxiosError(error) && error.response?.status === 404) {
+      return (
+        <div className="text-center p-8">
+          <h3 className="text-xl font-semibold mb-3">Profile Required</h3>
+          <p className="text-gray-600 mb-6">
+            You need to create a profile before you can see other people.
+          </p>
+          <Link
+            to="/profile/create"
+            className="bg-pink-500 text-white px-6 py-3 rounded-full font-medium hover:bg-pink-600 transition-colors"
+          >
+            Create Profile
+          </Link>
+        </div>
+      );
+    }
+
     return (
       <div className="text-center p-8 text-red-500">
         <p>Failed to load recommendations</p>
@@ -69,7 +89,10 @@ export const RecommendationFeed = () => {
         {profiles.map((profile, index) => (
           <div key={`${profile.id}-${index}`} className="flex flex-col">
             <ProfileCard profile={profile} />
-            <ProfileActions profileId={profile.id} />
+            <ProfileActions 
+              targetUserId={profile.userId} 
+              initialInteractionType={profile.interactionType}
+            />
           </div>
         ))}
       </div>

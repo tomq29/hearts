@@ -5,7 +5,7 @@ server:
   address: :8080
 
 database:
-  url: postgres://postgres:password@localhost:5433/hearts?sslmode=disable
+  url: "postgres://user:password@localhost:5432/dbname" # Override with HEARTS_DATABASE_URL
   max_connections: 10
   min_connections: 2
   max_conn_lifetime: 1h
@@ -16,8 +16,8 @@ logger:
 
 storage:
   endpoint: localhost:9000
-  access_key_id: minioadmin
-  secret_access_key: minioadmin
+  access_key_id: "CHANGE_ME" # Override with HEARTS_STORAGE_ACCESS_KEY_ID
+  secret_access_key: "CHANGE_ME" # Override with HEARTS_STORAGE_SECRET_ACCESS_KEY
   use_ssl: false
   bucket_name: hearts-photos
   location: us-east-1

@@ -5,6 +5,7 @@ import (
 	"net/http"
 
 	"github.com/kisssonik/hearts/internal/like/service"
+	"github.com/kisssonik/hearts/internal/profile"
 	"github.com/kisssonik/hearts/pkg/auth"
 	"github.com/kisssonik/hearts/pkg/storage"
 	"go.uber.org/zap"
@@ -104,6 +105,10 @@ func (h *LikeHandler) GetMatches(w http.ResponseWriter, r *http.Request) {
 			}
 			p.Photos[i] = url
 		}
+	}
+
+	if matches == nil {
+		matches = []*profile.Profile{}
 	}
 
 	w.Header().Set("Content-Type", "application/json")

@@ -9,15 +9,15 @@ services:
     ports:
       - "8080:8080"
     environment:
-      - HEARTS_DATABASE_URL=postgres://postgres:password@postgres:5432/hearts?sslmode=disable
+      - HEARTS_DATABASE_URL=${HEARTS_DATABASE_URL}
       - HEARTS_STORAGE_ENDPOINT=minio:9000
-      - HEARTS_STORAGE_ACCESS_KEY_ID=minioadmin
-      - HEARTS_STORAGE_SECRET_ACCESS_KEY=minioadmin
+      - HEARTS_STORAGE_ACCESS_KEY_ID=${HEARTS_STORAGE_ACCESS_KEY_ID}
+      - HEARTS_STORAGE_SECRET_ACCESS_KEY=${HEARTS_STORAGE_SECRET_ACCESS_KEY}
       - HEARTS_STORAGE_USE_SSL=false
       - HEARTS_STORAGE_BUCKET_NAME=hearts-photos
       - HEARTS_STORAGE_LOCATION=us-east-1
-      - JWT_SECRET_KEY=supersecretkey
-      - KAFKA_BROKERS=kafka:9092
+      - JWT_SECRET_KEY=${JWT_SECRET_KEY}
+      - KAFKA_BROKERS=${KAFKA_BROKERS}
     depends_on:
       postgres:
         condition: service_started
@@ -47,8 +47,8 @@ services:
       - "9000:9000"
       - "9001:9001"
     environment:
-      MINIO_ROOT_USER: minioadmin
-      MINIO_ROOT_PASSWORD: minioadmin
+      MINIO_ROOT_USER: ${MINIO_ROOT_USER}
+      MINIO_ROOT_PASSWORD: ${MINIO_ROOT_PASSWORD}
     command: server /data --console-address ":9001"
     volumes:
       - minio_data:/data
@@ -59,9 +59,9 @@ services:
     ports:
       - "5433:5432"
     environment:
-      POSTGRES_USER: postgres
-      POSTGRES_PASSWORD: password
-      POSTGRES_DB: hearts
+      POSTGRES_USER: ${POSTGRES_USER}
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD}
+      POSTGRES_DB: ${POSTGRES_DB}
     volumes:
       - postgres_data:/var/lib/postgresql/data
 

@@ -18,4 +18,7 @@ type Profile struct {
 	Longitude              *float64   `json:"longitude" db:"longitude"`
 	CreatedAt              time.Time  `json:"createdAt" db:"created_at"`
 	UpdatedAt              time.Time  `json:"updatedAt" db:"updated_at"`
+
+	// Enriched fields
+	InteractionType *string `json:"interactionType,omitempty" db:"interaction_type"` // "like", "pass", or null
 }

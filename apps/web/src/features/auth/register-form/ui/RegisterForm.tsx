@@ -3,11 +3,22 @@ import { zodResolver } from "@hookform/resolvers/zod";
 import { useNavigate } from "@tanstack/react-router";
 import { useMutation } from "@tanstack/react-query";
 import { api } from "@/shared/api";
+import { useAuthStore } from "@/entities/session";
 import { getErrorMessage } from "@/shared/lib/error";
 import { registerSchema, type RegisterFormSchema } from "../model/schema";
 
+interface RegisterResponse {
+  user: {
+    id: string;
+    email: string;
+    username: string;
+  };
+  accessToken: string;
+}
+
 export const RegisterForm = () => {
   const navigate = useNavigate();
+  const setToken = useAuthStore((state) => state.setToken);
 
   const {
     register,
@@ -18,14 +29,28 @@ export const RegisterForm = () => {
   });
 
   const mutation = useMutation({
-    mutationFn: (data: RegisterFormSchema) =>
-      api.post("/api/v1/users/register", {
-        email: data.email,
-        username: data.username,
-        password: data.password,
-      }),
-    onSuccess: () => {
-      navigate({ to: "/login" });
+    mutationFn: async (data: RegisterFormSchema) => {
+      const response = await api.post<RegisterResponse>(
+        "/api/v1/users/register",
+        {
+          email: data.email,
+          username: data.username,
+          password: data.password,
+        }
+      );
+      return response.data;
+    },
+    onSuccess: (data) => {
+      if (data.accessToken) {
+        setToken(data.accessToken);
+        // Navigate to profile page. If profile doesn't exist, the profile page
+        // should ideally handle it or we redirect to create.
+        // For now, let's go to /profile which is the standard "me" page.
+        navigate({ to: "/profile" });
+      } else {
+        // Fallback for manual login if something went wrong with auto-login
+        navigate({ to: "/login" });
+      }
     },
   });
 

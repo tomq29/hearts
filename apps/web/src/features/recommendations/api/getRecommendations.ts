@@ -7,7 +7,7 @@ export const getRecommendations = async ({
   pageParam?: number;
 }) => {
   const limit = 10;
-  const response = await api.get<Profile[]>("/api/v1/profiles", {
+  const response = await api.get<Profile[]>("/api/v1/profiles/search", {
     params: {
       page: pageParam,
       limit,

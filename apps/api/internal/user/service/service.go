@@ -107,10 +107,13 @@ func (s *userService) Login(ctx context.Context, email, password string) (*Login
 // RefreshToken validates a refresh token and issues new tokens if it's valid.
 func (s *userService) RefreshToken(ctx context.Context, refreshToken string) (*LoginResponse, error) {
 	// 1. Hash the incoming refresh token so we can look it up in the database.
-	// We need a way to hash this, so we'll add a temporary helper in the auth package.
-	// NOTE: This is a temporary solution. A better approach might be to have a separate
-	// crypto package or keep the hashing consistent.
-	hash := sha256.Sum256([]byte(refreshToken))
+	// GenerateTokens hashes the raw random bytes, so we must decode the base64
+	// string from the client back to raw bytes before hashing.
+	rawToken, err := base64.URLEncoding.DecodeString(refreshToken)
+	if err != nil {
+		return nil, errors.New("invalid or expired refresh token")
+	}
+	hash := sha256.Sum256(rawToken)
 	refreshTokenHash := base64.URLEncoding.EncodeToString(hash[:])
 
 	// 2. Get the user associated with the refresh token.

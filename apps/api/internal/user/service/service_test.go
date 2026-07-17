@@ -102,6 +102,53 @@ func TestRegisterUser_Success(t *testing.T) {
 	mockRepo.AssertExpectations(t)
 }
 
+// TestRefreshToken_HashRoundTrip is a regression test: the hash computed when
+// a client presents its refresh token must equal the hash stored at login.
+// Uses the real auth service so both sides of the round trip are exercised.
+func TestRefreshToken_HashRoundTrip(t *testing.T) {
+	// Arrange
+	mockRepo := new(MockUserRepository)
+	authService, err := auth.NewAuthService("test-secret")
+	assert.NoError(t, err)
+	svc := service.NewUserService(mockRepo, authService)
+
+	ctx := context.Background()
+	u := &user.User{ID: "user-123", Email: "test@example.com"}
+
+	// Generate a token pair the same way Login does, capturing the stored hash.
+	_, refreshToken, storedHash, expiresAt, err := authService.GenerateTokens(u.ID)
+	assert.NoError(t, err)
+
+	// The lookup must be called with exactly the hash that was stored.
+	mockRepo.On("GetUserByRefreshToken", ctx, storedHash).Return(u, nil)
+	// Rotation: a new hash gets stored for the user.
+	mockRepo.On("SetRefreshToken", ctx, u.ID, mock.AnythingOfType("string"), mock.AnythingOfType("time.Time")).Return(nil)
+	_ = expiresAt
+
+	// Act: present the client-facing refresh token string.
+	resp, err := svc.RefreshToken(ctx, refreshToken)
+
+	// Assert
+	assert.NoError(t, err)
+	assert.NotNil(t, resp)
+	assert.NotEmpty(t, resp.AccessToken)
+	assert.NotEmpty(t, resp.RefreshToken)
+	mockRepo.AssertExpectations(t)
+}
+
+func TestRefreshToken_InvalidBase64(t *testing.T) {
+	mockRepo := new(MockUserRepository)
+	authService, err := auth.NewAuthService("test-secret")
+	assert.NoError(t, err)
+	svc := service.NewUserService(mockRepo, authService)
+
+	resp, err := svc.RefreshToken(context.Background(), "not!!valid@@base64")
+
+	assert.Error(t, err)
+	assert.Nil(t, resp)
+	mockRepo.AssertNotCalled(t, "GetUserByRefreshToken")
+}
+
 func TestRegisterUser_RepoError(t *testing.T) {
 	// Arrange
 	mockRepo := new(MockUserRepository)

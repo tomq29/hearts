@@ -20,7 +20,9 @@ func setupTestDB(t *testing.T) *pgxpool.Pool {
 		URL: "postgres://postgres:password@localhost:5433/hearts?sslmode=disable",
 	}
 	pool, err := database.NewPostgresPool(context.Background(), cfg)
-	require.NoError(t, err)
+	if err != nil {
+		t.Skipf("skipping integration test: database unavailable (run docker-compose up): %v", err)
+	}
 
 	// Clean up
 	_, err = pool.Exec(context.Background(), "TRUNCATE TABLE users CASCADE")

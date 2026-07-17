@@ -48,6 +48,14 @@ func (m *MockProfileService) UpdateProfile(ctx context.Context, userID string, i
 	return args.Get(0).(*profile.Profile), args.Error(1)
 }
 
+func (m *MockProfileService) SearchProfiles(ctx context.Context, userID string, params service.SearchParams) ([]*profile.Profile, error) {
+	args := m.Called(ctx, userID, params)
+	if args.Get(0) == nil {
+		return nil, args.Error(1)
+	}
+	return args.Get(0).([]*profile.Profile), args.Error(1)
+}
+
 // MockStorageProvider
 type MockStorageProvider struct {
 	mock.Mock

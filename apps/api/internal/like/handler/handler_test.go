@@ -36,6 +36,11 @@ func (m *MockLikeService) GetMatches(ctx context.Context, userID string) ([]*pro
 	return args.Get(0).([]*profile.Profile), args.Error(1)
 }
 
+func (m *MockLikeService) ProcessMatchCheck(ctx context.Context, fromUserID, targetID string) error {
+	args := m.Called(ctx, fromUserID, targetID)
+	return args.Error(0)
+}
+
 // MockStorageProvider
 type MockStorageProvider struct {
 	mock.Mock

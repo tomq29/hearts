@@ -75,6 +75,13 @@ func TestRegister_Success(t *testing.T) {
 
 	mockService.On("RegisterUser", mock.Anything, "test@example.com", "testuser", "password123").Return(expectedUser, nil)
 
+	// Register auto-logins after creating the user
+	loginResp := &service.LoginResponse{
+		AccessToken:  "access-token",
+		RefreshToken: "refresh-token",
+	}
+	mockService.On("Login", mock.Anything, "test@example.com", "password123").Return(loginResp, nil)
+
 	// Request
 	req, _ := http.NewRequest("POST", "/register", bytes.NewBuffer(body))
 	rr := httptest.NewRecorder()
@@ -85,10 +92,23 @@ func TestRegister_Success(t *testing.T) {
 	// Assert
 	assert.Equal(t, http.StatusCreated, rr.Code)
 
-	var responseUser user.User
-	json.Unmarshal(rr.Body.Bytes(), &responseUser)
-	assert.Equal(t, expectedUser.ID, responseUser.ID)
-	assert.Equal(t, expectedUser.Email, responseUser.Email)
+	var resp handler.RegisterResponse
+	json.Unmarshal(rr.Body.Bytes(), &resp)
+	assert.Equal(t, expectedUser.ID, resp.User.ID)
+	assert.Equal(t, expectedUser.Email, resp.User.Email)
+	assert.Equal(t, "access-token", resp.AccessToken)
+
+	// Refresh token should be set as an HttpOnly cookie
+	found := false
+	for _, c := range rr.Result().Cookies() {
+		if c.Name == "refreshToken" {
+			assert.Equal(t, "refresh-token", c.Value)
+			assert.True(t, c.HttpOnly)
+			found = true
+			break
+		}
+	}
+	assert.True(t, found, "RefreshToken cookie should be set")
 
 	mockService.AssertExpectations(t)
 }

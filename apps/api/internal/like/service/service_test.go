@@ -3,12 +3,12 @@ package service_test
 import (
 	"context"
 	"testing"
-	"time"
 
 	"github.com/kisssonik/hearts/internal/like"
 	"github.com/kisssonik/hearts/internal/like/service"
 	"github.com/kisssonik/hearts/internal/notification"
 	"github.com/kisssonik/hearts/internal/profile"
+	profileRepo "github.com/kisssonik/hearts/internal/profile/repository"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/mock"
 )
@@ -64,6 +64,14 @@ func (m *MockProfileRepository) Update(ctx context.Context, p *profile.Profile) 
 	return args.Error(0)
 }
 
+func (m *MockProfileRepository) Search(ctx context.Context, currentUser *profile.Profile, params profileRepo.SearchParams) ([]*profile.Profile, error) {
+	args := m.Called(ctx, currentUser, params)
+	if args.Get(0) == nil {
+		return nil, args.Error(1)
+	}
+	return args.Get(0).([]*profile.Profile), args.Error(1)
+}
+
 // MockNotificationService
 type MockNotificationService struct {
 	mock.Mock
@@ -87,59 +95,55 @@ func (m *MockNotificationService) MarkAsRead(ctx context.Context, notificationID
 	return args.Error(0)
 }
 
+// MockProducer
+type MockProducer struct {
+	mock.Mock
+}
+
+func (m *MockProducer) Publish(ctx context.Context, message interface{}) error {
+	args := m.Called(ctx, message)
+	return args.Error(0)
+}
+
+func (m *MockProducer) Close() error {
+	args := m.Called()
+	return args.Error(0)
+}
+
 func TestLikeService_LikeUser(t *testing.T) {
 	ctx := context.Background()
 	fromID := "u1"
 	toID := "u2"
 
-	t.Run("Like, no mutual", func(t *testing.T) {
+	t.Run("Like publishes match check", func(t *testing.T) {
 		mockRepo := new(MockLikeRepository)
 		mockProfileRepo := new(MockProfileRepository)
 		mockNotifService := new(MockNotificationService)
-		s := service.NewLikeService(mockRepo, mockProfileRepo, mockNotifService)
+		mockProducer := new(MockProducer)
+		s := service.NewLikeService(mockRepo, mockProfileRepo, mockNotifService, mockProducer)
 
 		mockRepo.On("Upsert", ctx, mock.MatchedBy(func(l *like.Like) bool {
 			return l.FromUserID == fromID && l.ToUserID == toID && l.IsLike == true
 		})).Return(nil)
-		// HasMutualLike is called in goroutine, so we use mock.Anything for context
-		mockRepo.On("HasMutualLike", mock.Anything, fromID, toID).Return(false, nil)
+		mockProducer.On("Publish", ctx, service.MatchCheckMessage{
+			FromUserID: fromID,
+			TargetID:   toID,
+		}).Return(nil)
 
 		isMatch, err := s.LikeUser(ctx, fromID, service.LikeInput{TargetID: toID, IsLike: true})
 		assert.NoError(t, err)
-		assert.False(t, isMatch) // Always false now
+		assert.False(t, isMatch) // Match detection is async via Kafka
 
-		// Wait for goroutine
-		time.Sleep(100 * time.Millisecond)
 		mockRepo.AssertExpectations(t)
+		mockProducer.AssertExpectations(t)
 	})
 
-	t.Run("Like, mutual", func(t *testing.T) {
+	t.Run("Pass does not publish", func(t *testing.T) {
 		mockRepo := new(MockLikeRepository)
 		mockProfileRepo := new(MockProfileRepository)
 		mockNotifService := new(MockNotificationService)
-		s := service.NewLikeService(mockRepo, mockProfileRepo, mockNotifService)
-
-		mockRepo.On("Upsert", ctx, mock.MatchedBy(func(l *like.Like) bool {
-			return l.FromUserID == fromID && l.ToUserID == toID && l.IsLike == true
-		})).Return(nil)
-		mockRepo.On("HasMutualLike", mock.Anything, fromID, toID).Return(true, nil)
-		mockNotifService.On("NotifyMatch", mock.Anything, fromID, toID).Return(nil)
-
-		isMatch, err := s.LikeUser(ctx, fromID, service.LikeInput{TargetID: toID, IsLike: true})
-		assert.NoError(t, err)
-		assert.False(t, isMatch) // Always false now
-
-		// Wait for goroutine
-		time.Sleep(100 * time.Millisecond)
-		mockRepo.AssertExpectations(t)
-		mockNotifService.AssertExpectations(t)
-	})
-
-	t.Run("Pass", func(t *testing.T) {
-		mockRepo := new(MockLikeRepository)
-		mockProfileRepo := new(MockProfileRepository)
-		mockNotifService := new(MockNotificationService)
-		s := service.NewLikeService(mockRepo, mockProfileRepo, mockNotifService)
+		mockProducer := new(MockProducer)
+		s := service.NewLikeService(mockRepo, mockProfileRepo, mockNotifService, mockProducer)
 
 		mockRepo.On("Upsert", ctx, mock.MatchedBy(func(l *like.Like) bool {
 			return l.FromUserID == fromID && l.ToUserID == toID && l.IsLike == false
@@ -149,6 +153,56 @@ func TestLikeService_LikeUser(t *testing.T) {
 		assert.NoError(t, err)
 		assert.False(t, isMatch)
 		mockRepo.AssertExpectations(t)
+		mockProducer.AssertNotCalled(t, "Publish")
+	})
+
+	t.Run("Self-like is rejected", func(t *testing.T) {
+		mockRepo := new(MockLikeRepository)
+		mockProfileRepo := new(MockProfileRepository)
+		mockNotifService := new(MockNotificationService)
+		mockProducer := new(MockProducer)
+		s := service.NewLikeService(mockRepo, mockProfileRepo, mockNotifService, mockProducer)
+
+		_, err := s.LikeUser(ctx, fromID, service.LikeInput{TargetID: fromID, IsLike: true})
+		assert.ErrorIs(t, err, service.ErrSelfLike)
+		mockRepo.AssertNotCalled(t, "Upsert")
+	})
+}
+
+func TestLikeService_ProcessMatchCheck(t *testing.T) {
+	ctx := context.Background()
+	fromID := "u1"
+	toID := "u2"
+
+	t.Run("Mutual like notifies", func(t *testing.T) {
+		mockRepo := new(MockLikeRepository)
+		mockProfileRepo := new(MockProfileRepository)
+		mockNotifService := new(MockNotificationService)
+		mockProducer := new(MockProducer)
+		s := service.NewLikeService(mockRepo, mockProfileRepo, mockNotifService, mockProducer)
+
+		mockRepo.On("HasMutualLike", ctx, fromID, toID).Return(true, nil)
+		mockNotifService.On("NotifyMatch", ctx, fromID, toID).Return(nil)
+
+		err := s.ProcessMatchCheck(ctx, fromID, toID)
+		assert.NoError(t, err)
+		mockRepo.AssertExpectations(t)
+		mockNotifService.AssertExpectations(t)
+	})
+
+	t.Run("No mutual like, no notification", func(t *testing.T) {
+		mockRepo := new(MockLikeRepository)
+		mockProfileRepo := new(MockProfileRepository)
+		mockNotifService := new(MockNotificationService)
+		mockProducer := new(MockProducer)
+		s := service.NewLikeService(mockRepo, mockProfileRepo, mockNotifService, mockProducer)
+
+		mockRepo.On("HasMutualLike", ctx, fromID, toID).Return(false, nil)
+
+		err := s.ProcessMatchCheck(ctx, fromID, toID)
+		assert.NoError(t, err)
+		mockRepo.AssertExpectations(t)
+		mockNotifService.AssertNotCalled(t, "NotifyMatch")
 	})
 }
 
@@ -156,7 +210,8 @@ func TestLikeService_GetMatches(t *testing.T) {
 	mockRepo := new(MockLikeRepository)
 	mockProfileRepo := new(MockProfileRepository)
 	mockNotifService := new(MockNotificationService)
-	s := service.NewLikeService(mockRepo, mockProfileRepo, mockNotifService)
+	mockProducer := new(MockProducer)
+	s := service.NewLikeService(mockRepo, mockProfileRepo, mockNotifService, mockProducer)
 
 	ctx := context.Background()
 	userID := "u1"

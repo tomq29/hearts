@@ -42,6 +42,14 @@ func (m *MockProfileRepository) Update(ctx context.Context, p *profile.Profile) 
 	return args.Error(0)
 }
 
+func (m *MockProfileRepository) Search(ctx context.Context, currentUser *profile.Profile, params repository.SearchParams) ([]*profile.Profile, error) {
+	args := m.Called(ctx, currentUser, params)
+	if args.Get(0) == nil {
+		return nil, args.Error(1)
+	}
+	return args.Get(0).([]*profile.Profile), args.Error(1)
+}
+
 func TestCreateProfile_Success(t *testing.T) {
 	mockRepo := new(MockProfileRepository)
 	s := service.NewProfileService(mockRepo)

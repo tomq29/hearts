@@ -92,7 +92,8 @@ func (s *userService) Login(ctx context.Context, email, password string) (*Login
 	}
 
 	// 4. Store the refresh token hash and its expiry in the database.
-	err = s.repo.SetRefreshToken(ctx, u.ID, refreshTokenHash, refreshTokenExpiresAt)
+	// Each login creates its own token row, so other devices stay logged in.
+	err = s.repo.CreateRefreshToken(ctx, u.ID, refreshTokenHash, refreshTokenExpiresAt)
 	if err != nil {
 		return nil, err
 	}
@@ -133,8 +134,12 @@ func (s *userService) RefreshToken(ctx context.Context, refreshToken string) (*L
 		return nil, err
 	}
 
-	// 4. Update the refresh token in the database with the new hash and expiry.
-	err = s.repo.SetRefreshToken(ctx, u.ID, newRefreshTokenHash, newRefreshTokenExpiresAt)
+	// 4. Rotate: the presented token is single-use, so delete it and store
+	// the replacement. Other devices' tokens are untouched.
+	if err := s.repo.DeleteRefreshToken(ctx, refreshTokenHash); err != nil {
+		return nil, err
+	}
+	err = s.repo.CreateRefreshToken(ctx, u.ID, newRefreshTokenHash, newRefreshTokenExpiresAt)
 	if err != nil {
 		return nil, err
 	}

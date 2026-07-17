@@ -23,8 +23,9 @@ type UserRepository interface {
 	CreateUser(ctx context.Context, u *user.User) error
 	GetUserByEmail(ctx context.Context, email string) (*user.User, error)
 	GetUserByID(ctx context.Context, id string) (*user.User, error)
-	SetRefreshToken(ctx context.Context, userID string, tokenHash string, expiresAt time.Time) error
+	CreateRefreshToken(ctx context.Context, userID string, tokenHash string, expiresAt time.Time) error
 	GetUserByRefreshToken(ctx context.Context, tokenHash string) (*user.User, error)
+	DeleteRefreshToken(ctx context.Context, tokenHash string) error
 }
 
 // pgxUserRepository is the implementation of UserRepository using pgx.
@@ -93,23 +94,31 @@ func (r *pgxUserRepository) GetUserByID(ctx context.Context, id string) (*user.U
 	return u, nil
 }
 
-// SetRefreshToken updates the user's refresh token information in the database.
-func (r *pgxUserRepository) SetRefreshToken(ctx context.Context, userID string, tokenHash string, expiresAt time.Time) error {
+// CreateRefreshToken stores a new refresh token for the user. Each login or
+// rotation adds its own row, so a user can hold one token per device.
+func (r *pgxUserRepository) CreateRefreshToken(ctx context.Context, userID string, tokenHash string, expiresAt time.Time) error {
+	// Opportunistic cleanup: expired tokens for this user will never be
+	// looked up again, so drop them while we're here.
+	if _, err := r.db.Exec(ctx,
+		`DELETE FROM refresh_tokens WHERE user_id = $1 AND expires_at <= NOW()`, userID); err != nil {
+		return err
+	}
+
 	query := `
-		UPDATE users
-		SET refresh_token_hash = $1, refresh_token_expires_at = $2
-		WHERE id = $3
+		INSERT INTO refresh_tokens (user_id, token_hash, expires_at)
+		VALUES ($1, $2, $3)
 	`
-	_, err := r.db.Exec(ctx, query, tokenHash, expiresAt, userID)
+	_, err := r.db.Exec(ctx, query, userID, tokenHash, expiresAt)
 	return err
 }
 
-// GetUserByRefreshToken retrieves a user by their valid refresh token hash.
+// GetUserByRefreshToken retrieves a user by a valid (unexpired) refresh token hash.
 func (r *pgxUserRepository) GetUserByRefreshToken(ctx context.Context, tokenHash string) (*user.User, error) {
 	query := `
-		SELECT id, email, username, password_hash, created_at
-		FROM users
-		WHERE refresh_token_hash = $1 AND refresh_token_expires_at > NOW()
+		SELECT u.id, u.email, u.username, u.password_hash, u.created_at
+		FROM users u
+		JOIN refresh_tokens rt ON rt.user_id = u.id
+		WHERE rt.token_hash = $1 AND rt.expires_at > NOW()
 	`
 	u := &user.User{}
 	err := r.db.QueryRow(ctx, query, tokenHash).Scan(&u.ID, &u.Email, &u.Username, &u.PasswordHash, &u.CreatedAt)
@@ -120,4 +129,11 @@ func (r *pgxUserRepository) GetUserByRefreshToken(ctx context.Context, tokenHash
 		return nil, err
 	}
 	return u, nil
+}
+
+// DeleteRefreshToken removes a refresh token (rotation or logout).
+// Deleting a token that no longer exists is not an error.
+func (r *pgxUserRepository) DeleteRefreshToken(ctx context.Context, tokenHash string) error {
+	_, err := r.db.Exec(ctx, `DELETE FROM refresh_tokens WHERE token_hash = $1`, tokenHash)
+	return err
 }

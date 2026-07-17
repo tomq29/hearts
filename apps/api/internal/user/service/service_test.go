@@ -39,8 +39,13 @@ func (m *MockUserRepository) GetUserByID(ctx context.Context, id string) (*user.
 	return args.Get(0).(*user.User), args.Error(1)
 }
 
-func (m *MockUserRepository) SetRefreshToken(ctx context.Context, userID string, tokenHash string, expiresAt time.Time) error {
+func (m *MockUserRepository) CreateRefreshToken(ctx context.Context, userID string, tokenHash string, expiresAt time.Time) error {
 	args := m.Called(ctx, userID, tokenHash, expiresAt)
+	return args.Error(0)
+}
+
+func (m *MockUserRepository) DeleteRefreshToken(ctx context.Context, tokenHash string) error {
+	args := m.Called(ctx, tokenHash)
 	return args.Error(0)
 }
 
@@ -121,8 +126,9 @@ func TestRefreshToken_HashRoundTrip(t *testing.T) {
 
 	// The lookup must be called with exactly the hash that was stored.
 	mockRepo.On("GetUserByRefreshToken", ctx, storedHash).Return(u, nil)
-	// Rotation: a new hash gets stored for the user.
-	mockRepo.On("SetRefreshToken", ctx, u.ID, mock.AnythingOfType("string"), mock.AnythingOfType("time.Time")).Return(nil)
+	// Rotation: the presented token is deleted and a new one stored.
+	mockRepo.On("DeleteRefreshToken", ctx, storedHash).Return(nil)
+	mockRepo.On("CreateRefreshToken", ctx, u.ID, mock.AnythingOfType("string"), mock.AnythingOfType("time.Time")).Return(nil)
 	_ = expiresAt
 
 	// Act: present the client-facing refresh token string.

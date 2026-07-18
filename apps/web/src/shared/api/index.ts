@@ -1,10 +1,15 @@
 import axios, { AxiosError, type InternalAxiosRequestConfig } from "axios";
 import { useAuthStore } from "@/entities/session";
 
-const BASE_URL = "http://localhost:8080"; // Adjust if your API is on a different port
+// Configured per environment via VITE_API_URL (see .env.example);
+// falls back to the local dev backend.
+export const API_URL = import.meta.env.VITE_API_URL ?? "http://localhost:8080";
+
+// WebSocket endpoint derived from the API origin (http -> ws, https -> wss).
+export const WS_URL = API_URL.replace(/^http/, "ws") + "/ws";
 
 export const api = axios.create({
-  baseURL: BASE_URL,
+  baseURL: API_URL,
   // Required for the HttpOnly refreshToken cookie to be stored and sent
   // on cross-origin requests (frontend :5173 -> API :8080).
   withCredentials: true,
@@ -26,7 +31,7 @@ const refreshAccessToken = async (): Promise<string> => {
   // Bare axios (not `api`) so a failed refresh doesn't re-enter the
   // interceptor below and loop forever.
   const response = await axios.post<{ accessToken: string }>(
-    `${BASE_URL}/api/v1/auth/refresh`,
+    `${API_URL}/api/v1/auth/refresh`,
     null,
     { withCredentials: true }
   );

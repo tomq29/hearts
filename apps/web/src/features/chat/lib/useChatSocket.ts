@@ -1,6 +1,7 @@
 import { useEffect, useRef, useCallback, useState } from "react";
 import { useQueryClient } from "@tanstack/react-query";
 import { useAuthStore } from "@/entities/session";
+import { WS_URL } from "@/shared/api";
 import type { Message } from "../model/types";
 import { getChatTicket } from "../api";
 
@@ -23,7 +24,7 @@ export const useChatSocket = (matchId: string) => {
 
         if (!isMounted) return;
 
-        const wsUrl = `ws://localhost:8080/ws?ticket=${ticket}&matchId=${matchId}`;
+        const wsUrl = `${WS_URL}?ticket=${ticket}&matchId=${matchId}`;
         const socket = new WebSocket(wsUrl);
 
         socket.onopen = () => {

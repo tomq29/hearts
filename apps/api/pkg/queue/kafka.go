@@ -3,6 +3,7 @@ package queue
 import (
 	"context"
 	"encoding/json"
+	"errors"
 	"time"
 
 	"github.com/segmentio/kafka-go"
@@ -55,7 +56,29 @@ type kafkaConsumer struct {
 	logger *zap.Logger
 }
 
+// EnsureTopic creates the topic if it does not exist yet. A consumer group
+// that joins before its topic exists is assigned zero partitions and never
+// receives anything — even after the topic is auto-created by a producer —
+// so consumers must call this before joining.
+func EnsureTopic(brokers []string, topic string, logger *zap.Logger) {
+	client := &kafka.Client{Addr: kafka.TCP(brokers...)}
+	resp, err := client.CreateTopics(context.Background(), &kafka.CreateTopicsRequest{
+		Topics: []kafka.TopicConfig{{Topic: topic, NumPartitions: 1, ReplicationFactor: 1}},
+	})
+	if err != nil {
+		logger.Warn("Failed to ensure Kafka topic exists", zap.String("topic", topic), zap.Error(err))
+		return
+	}
+	for name, topicErr := range resp.Errors {
+		// Already existing is the expected steady state, not a problem.
+		if topicErr != nil && !errors.Is(topicErr, kafka.TopicAlreadyExists) {
+			logger.Warn("Failed to create Kafka topic", zap.String("topic", name), zap.Error(topicErr))
+		}
+	}
+}
+
 func NewKafkaConsumer(brokers []string, topic, groupID string, logger *zap.Logger) Consumer {
+	EnsureTopic(brokers, topic, logger)
 	r := kafka.NewReader(kafka.ReaderConfig{
 		Brokers:  brokers,
 		Topic:    topic,

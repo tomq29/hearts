@@ -11,6 +11,7 @@ import (
 	profileRepo "github.com/kisssonik/hearts/internal/profile/repository"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/mock"
+	"go.uber.org/zap"
 )
 
 // MockLikeRepository
@@ -120,7 +121,7 @@ func TestLikeService_LikeUser(t *testing.T) {
 		mockProfileRepo := new(MockProfileRepository)
 		mockNotifService := new(MockNotificationService)
 		mockProducer := new(MockProducer)
-		s := service.NewLikeService(mockRepo, mockProfileRepo, mockNotifService, mockProducer)
+		s := service.NewLikeService(mockRepo, mockProfileRepo, mockNotifService, mockProducer, zap.NewNop())
 
 		mockRepo.On("Upsert", ctx, mock.MatchedBy(func(l *like.Like) bool {
 			return l.FromUserID == fromID && l.ToUserID == toID && l.IsLike == true
@@ -143,7 +144,7 @@ func TestLikeService_LikeUser(t *testing.T) {
 		mockProfileRepo := new(MockProfileRepository)
 		mockNotifService := new(MockNotificationService)
 		mockProducer := new(MockProducer)
-		s := service.NewLikeService(mockRepo, mockProfileRepo, mockNotifService, mockProducer)
+		s := service.NewLikeService(mockRepo, mockProfileRepo, mockNotifService, mockProducer, zap.NewNop())
 
 		mockRepo.On("Upsert", ctx, mock.MatchedBy(func(l *like.Like) bool {
 			return l.FromUserID == fromID && l.ToUserID == toID && l.IsLike == false
@@ -161,7 +162,7 @@ func TestLikeService_LikeUser(t *testing.T) {
 		mockProfileRepo := new(MockProfileRepository)
 		mockNotifService := new(MockNotificationService)
 		mockProducer := new(MockProducer)
-		s := service.NewLikeService(mockRepo, mockProfileRepo, mockNotifService, mockProducer)
+		s := service.NewLikeService(mockRepo, mockProfileRepo, mockNotifService, mockProducer, zap.NewNop())
 
 		_, err := s.LikeUser(ctx, fromID, service.LikeInput{TargetID: fromID, IsLike: true})
 		assert.ErrorIs(t, err, service.ErrSelfLike)
@@ -179,7 +180,7 @@ func TestLikeService_ProcessMatchCheck(t *testing.T) {
 		mockProfileRepo := new(MockProfileRepository)
 		mockNotifService := new(MockNotificationService)
 		mockProducer := new(MockProducer)
-		s := service.NewLikeService(mockRepo, mockProfileRepo, mockNotifService, mockProducer)
+		s := service.NewLikeService(mockRepo, mockProfileRepo, mockNotifService, mockProducer, zap.NewNop())
 
 		mockRepo.On("HasMutualLike", ctx, fromID, toID).Return(true, nil)
 		mockNotifService.On("NotifyMatch", ctx, fromID, toID).Return(nil)
@@ -195,7 +196,7 @@ func TestLikeService_ProcessMatchCheck(t *testing.T) {
 		mockProfileRepo := new(MockProfileRepository)
 		mockNotifService := new(MockNotificationService)
 		mockProducer := new(MockProducer)
-		s := service.NewLikeService(mockRepo, mockProfileRepo, mockNotifService, mockProducer)
+		s := service.NewLikeService(mockRepo, mockProfileRepo, mockNotifService, mockProducer, zap.NewNop())
 
 		mockRepo.On("HasMutualLike", ctx, fromID, toID).Return(false, nil)
 
@@ -211,7 +212,7 @@ func TestLikeService_GetMatches(t *testing.T) {
 	mockProfileRepo := new(MockProfileRepository)
 	mockNotifService := new(MockNotificationService)
 	mockProducer := new(MockProducer)
-	s := service.NewLikeService(mockRepo, mockProfileRepo, mockNotifService, mockProducer)
+	s := service.NewLikeService(mockRepo, mockProfileRepo, mockNotifService, mockProducer, zap.NewNop())
 
 	ctx := context.Background()
 	userID := "u1"

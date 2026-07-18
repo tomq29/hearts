@@ -10,6 +10,7 @@ import (
 	"github.com/kisssonik/hearts/internal/profile"
 	profileRepo "github.com/kisssonik/hearts/internal/profile/repository"
 	"github.com/kisssonik/hearts/pkg/queue"
+	"go.uber.org/zap"
 )
 
 var ErrSelfLike = errors.New("cannot like yourself")
@@ -35,14 +36,16 @@ type likeService struct {
 	profileRepo         profileRepo.ProfileRepository
 	notificationService service.NotificationService
 	producer            queue.Producer
+	logger              *zap.Logger
 }
 
-func NewLikeService(repo repository.LikeRepository, profileRepo profileRepo.ProfileRepository, notificationService service.NotificationService, producer queue.Producer) LikeService {
+func NewLikeService(repo repository.LikeRepository, profileRepo profileRepo.ProfileRepository, notificationService service.NotificationService, producer queue.Producer, logger *zap.Logger) LikeService {
 	return &likeService{
 		repo:                repo,
 		profileRepo:         profileRepo,
 		notificationService: notificationService,
 		producer:            producer,
+		logger:              logger,
 	}
 }
 
@@ -72,8 +75,13 @@ func (s *likeService) LikeUser(ctx context.Context, fromUserID string, input Lik
 		TargetID:   input.TargetID,
 	}
 	if err := s.producer.Publish(ctx, msg); err != nil {
-		// Log error but don't fail the request
-		// In production, you might want to fallback to sync check or retry
+		// The like is already saved; don't fail the request. But a lost
+		// message means the match check never runs, so this must be loud.
+		// TODO: replace with a transactional outbox so publishes can't be lost.
+		s.logger.Error("Failed to publish match check; a mutual match may go undetected",
+			zap.String("fromUserID", fromUserID),
+			zap.String("targetID", input.TargetID),
+			zap.Error(err))
 		return false, nil
 	}
 

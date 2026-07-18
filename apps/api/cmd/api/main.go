@@ -157,7 +157,7 @@ func main() {
 	nHandler := notificationHandler.NewNotificationHandler(nService, appLogger)
 
 	lRepo := likeRepo.NewLikeRepository(dbPool)
-	lService := likeService.NewLikeService(lRepo, pRepo, nService, kafkaProducer)
+	lService := likeService.NewLikeService(lRepo, pRepo, nService, kafkaProducer, appLogger)
 	lHandler := likeHandler.NewLikeHandler(lService, storageProvider, appLogger)
 
 	rRepo := reviewRepo.NewReviewRepository(dbPool)

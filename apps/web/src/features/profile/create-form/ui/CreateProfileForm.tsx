@@ -3,7 +3,7 @@ import { zodResolver } from "@hookform/resolvers/zod";
 import { useState } from "react";
 import { useNavigate } from "@tanstack/react-router";
 import { useMutation, useQueryClient } from "@tanstack/react-query";
-import { api, uploadPhoto } from "@/shared/api";
+import { api, uploadPhoto, PHOTO_ACCEPT, PHOTO_RULES_HINT } from "@/shared/api";
 import { getErrorMessage } from "@/shared/lib/error";
 import { profileSchema, type ProfileFormSchema } from "@/entities/profile";
 
@@ -11,6 +11,7 @@ export const CreateProfileForm = () => {
   const navigate = useNavigate();
   const queryClient = useQueryClient();
   const [uploading, setUploading] = useState(false);
+  const [uploadError, setUploadError] = useState<string | null>(null);
   const [photoUrls, setPhotoUrls] = useState<string[]>([]);
 
   const {
@@ -33,15 +34,18 @@ export const CreateProfileForm = () => {
 
     try {
       setUploading(true);
+      setUploadError(null);
       const file = e.target.files[0];
       const { key, url } = await uploadPhoto(file);
 
       setValue("photos", [...photos, key]);
       setPhotoUrls([...photoUrls, url]);
     } catch (err) {
-      console.error("Upload failed", err);
+      setUploadError(err instanceof Error ? err.message : "Upload failed");
     } finally {
       setUploading(false);
+      // Allow re-selecting the same file after an error.
+      e.target.value = "";
     }
   };
 
@@ -102,12 +106,16 @@ export const CreateProfileForm = () => {
               <input
                 type="file"
                 className="hidden"
-                accept="image/*"
+                accept={PHOTO_ACCEPT}
                 onChange={handleFileChange}
                 disabled={uploading}
               />
             </label>
           </div>
+          <p className="text-xs text-gray-400 mt-1">{PHOTO_RULES_HINT}</p>
+          {uploadError && (
+            <p className="text-red-500 text-xs mt-1">{uploadError}</p>
+          )}
           {errors.photos && (
             <p className="text-red-500 text-xs mt-1">{errors.photos.message}</p>
           )}

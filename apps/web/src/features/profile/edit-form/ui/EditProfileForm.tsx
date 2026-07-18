@@ -3,7 +3,7 @@ import { zodResolver } from "@hookform/resolvers/zod";
 import { useState, useEffect } from "react";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { useNavigate } from "@tanstack/react-router";
-import { uploadPhoto } from "@/shared/api";
+import { uploadPhoto, PHOTO_ACCEPT, PHOTO_RULES_HINT } from "@/shared/api";
 import { getErrorMessage } from "@/shared/lib/error";
 import {
   profileSchema,
@@ -16,6 +16,7 @@ export const EditProfileForm = () => {
   const queryClient = useQueryClient();
   const navigate = useNavigate();
   const [uploading, setUploading] = useState(false);
+  const [uploadError, setUploadError] = useState<string | null>(null);
   const [photoUrls, setPhotoUrls] = useState<string[]>([]);
 
   const { data: profile, isLoading: isLoadingProfile } = useQuery({
@@ -107,9 +108,11 @@ export const EditProfileForm = () => {
       setValue("photos", [...photos, key]); // Using key for new photos
       setPhotoUrls([...photoUrls, url]);
     } catch (err) {
-      console.error("Upload failed", err);
+      setUploadError(err instanceof Error ? err.message : "Upload failed");
     } finally {
       setUploading(false);
+      // Allow re-selecting the same file after an error.
+      e.target.value = "";
     }
   };
 
@@ -184,12 +187,16 @@ export const EditProfileForm = () => {
               <input
                 type="file"
                 className="hidden"
-                accept="image/*"
+                accept={PHOTO_ACCEPT}
                 onChange={handleFileChange}
                 disabled={uploading}
               />
             </label>
           </div>
+          <p className="text-xs text-gray-400 mt-1">{PHOTO_RULES_HINT}</p>
+          {uploadError && (
+            <p className="text-red-500 text-xs mt-1">{uploadError}</p>
+          )}
           {errors.photos && (
             <p className="text-red-500 text-xs mt-1">{errors.photos.message}</p>
           )}

@@ -84,7 +84,22 @@ api.interceptors.response.use(
   }
 );
 
+// Mirror of the backend upload rules (see profile handler): keep in sync.
+export const PHOTO_MAX_SIZE_MB = 10;
+export const PHOTO_ALLOWED_TYPES = ["image/jpeg", "image/png", "image/webp"];
+export const PHOTO_ACCEPT = PHOTO_ALLOWED_TYPES.join(",");
+export const PHOTO_RULES_HINT = `JPEG, PNG or WebP, up to ${PHOTO_MAX_SIZE_MB}MB`;
+
 export const uploadPhoto = async (file: File) => {
+  // Pre-validate so the user gets instant feedback instead of a server error.
+  // The backend still enforces both rules by sniffing the actual bytes.
+  if (!PHOTO_ALLOWED_TYPES.includes(file.type)) {
+    throw new Error(`Unsupported file type. ${PHOTO_RULES_HINT}.`);
+  }
+  if (file.size > PHOTO_MAX_SIZE_MB * 1024 * 1024) {
+    throw new Error(`File is too large. ${PHOTO_RULES_HINT}.`);
+  }
+
   const formData = new FormData();
   formData.append("photo", file);
 

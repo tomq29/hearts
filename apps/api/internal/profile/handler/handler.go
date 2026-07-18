@@ -5,8 +5,8 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
+	"io"
 	"net/http"
-	"path/filepath"
 
 	"github.com/google/uuid"
 	"github.com/kisssonik/hearts/internal/profile"
@@ -21,6 +21,18 @@ import (
 type UploadPhotoResponse struct {
 	Key string `json:"key"`
 	URL string `json:"url"`
+}
+
+// maxUploadSize limits photo uploads to 10MB.
+const maxUploadSize = 10 << 20
+
+// allowedImageTypes maps the sniffed content type to the extension we store.
+// The client's filename and Content-Type header are untrusted; only the
+// actual file bytes decide whether an upload is accepted.
+var allowedImageTypes = map[string]string{
+	"image/jpeg": ".jpg",
+	"image/png":  ".png",
+	"image/webp": ".webp",
 }
 
 type ProfileHandler struct {
@@ -67,8 +79,13 @@ func (h *ProfileHandler) UploadPhoto(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	// Limit upload size to 10MB
-	r.ParseMultipartForm(10 << 20)
+	// MaxBytesReader enforces the limit on the wire; ParseMultipartForm's
+	// argument only caps what is buffered in memory.
+	r.Body = http.MaxBytesReader(w, r.Body, maxUploadSize)
+	if err := r.ParseMultipartForm(maxUploadSize); err != nil {
+		http.Error(w, "File too large (max 10MB)", http.StatusRequestEntityTooLarge)
+		return
+	}
 
 	file, header, err := r.FormFile("photo")
 	if err != nil {
@@ -78,12 +95,32 @@ func (h *ProfileHandler) UploadPhoto(w http.ResponseWriter, r *http.Request) {
 	}
 	defer file.Close()
 
-	// Generate a unique filename
-	ext := filepath.Ext(header.Filename)
+	// Sniff the real content type from the file bytes.
+	head := make([]byte, 512)
+	n, err := file.Read(head)
+	if err != nil && err != io.EOF {
+		h.logger.Error("Failed to read uploaded file", zap.Error(err))
+		http.Error(w, "Invalid file", http.StatusBadRequest)
+		return
+	}
+	contentType := http.DetectContentType(head[:n])
+	ext, ok := allowedImageTypes[contentType]
+	if !ok {
+		http.Error(w, "Only JPEG, PNG and WebP images are allowed", http.StatusUnsupportedMediaType)
+		return
+	}
+	if _, err := file.Seek(0, io.SeekStart); err != nil {
+		h.logger.Error("Failed to rewind uploaded file", zap.Error(err))
+		http.Error(w, "Internal server error", http.StatusInternalServerError)
+		return
+	}
+
+	// Generate a unique filename; the extension comes from the sniffed type,
+	// never from the client-supplied name.
 	filename := fmt.Sprintf("%s/%s%s", userID, uuid.New().String(), ext)
 
-	// Upload to storage
-	key, err := h.storage.Upload(r.Context(), file, header.Size, header.Header.Get("Content-Type"), filename)
+	// Upload to storage with the sniffed content type.
+	key, err := h.storage.Upload(r.Context(), file, header.Size, contentType, filename)
 	if err != nil {
 		h.logger.Error("Failed to upload file", zap.Error(err))
 		http.Error(w, "Failed to upload file", http.StatusInternalServerError)

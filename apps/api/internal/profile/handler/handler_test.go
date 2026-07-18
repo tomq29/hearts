@@ -5,8 +5,10 @@ import (
 	"context"
 	"encoding/json"
 	"io"
+	"mime/multipart"
 	"net/http"
 	"net/http/httptest"
+	"strings"
 	"testing"
 
 	"github.com/kisssonik/hearts/internal/profile"
@@ -112,6 +114,63 @@ func TestProfileHandler_Get(t *testing.T) {
 
 	assert.Equal(t, http.StatusOK, w.Code)
 	mockService.AssertExpectations(t)
+}
+
+func multipartBody(t *testing.T, filename string, content []byte) (*bytes.Buffer, string) {
+	t.Helper()
+	body := &bytes.Buffer{}
+	writer := multipart.NewWriter(body)
+	part, err := writer.CreateFormFile("photo", filename)
+	assert.NoError(t, err)
+	_, err = part.Write(content)
+	assert.NoError(t, err)
+	assert.NoError(t, writer.Close())
+	return body, writer.FormDataContentType()
+}
+
+func TestProfileHandler_UploadPhoto_RejectsNonImage(t *testing.T) {
+	mockService := new(MockProfileService)
+	mockStorage := new(MockStorageProvider)
+	logger := zap.NewNop()
+	h := handler.NewProfileHandler(mockService, mockStorage, logger)
+
+	// A script disguised with an image filename must be rejected by sniffing.
+	body, contentType := multipartBody(t, "photo.png", []byte("<script>alert(1)</script>"))
+	req := httptest.NewRequest("POST", "/profiles/upload", body)
+	req.Header.Set("Content-Type", contentType)
+	req = req.WithContext(context.WithValue(req.Context(), auth.UserIDKey, "user1"))
+	w := httptest.NewRecorder()
+
+	h.UploadPhoto(w, req)
+
+	assert.Equal(t, http.StatusUnsupportedMediaType, w.Code)
+	mockStorage.AssertNotCalled(t, "Upload")
+}
+
+func TestProfileHandler_UploadPhoto_AcceptsPNG(t *testing.T) {
+	mockService := new(MockProfileService)
+	mockStorage := new(MockStorageProvider)
+	logger := zap.NewNop()
+	h := handler.NewProfileHandler(mockService, mockStorage, logger)
+
+	// Minimal PNG signature is enough for http.DetectContentType.
+	pngBytes := append([]byte("\x89PNG\r\n\x1a\n"), make([]byte, 16)...)
+	body, contentType := multipartBody(t, "anything.txt", pngBytes)
+	req := httptest.NewRequest("POST", "/profiles/upload", body)
+	req.Header.Set("Content-Type", contentType)
+	req = req.WithContext(context.WithValue(req.Context(), auth.UserIDKey, "user1"))
+	w := httptest.NewRecorder()
+
+	// The stored key must use the sniffed extension, not the client filename.
+	mockStorage.On("Upload", mock.Anything, mock.Anything, mock.Anything, "image/png",
+		mock.MatchedBy(func(key string) bool { return strings.HasSuffix(key, ".png") }),
+	).Return("user1/key.png", nil)
+	mockStorage.On("GetPresignedURL", mock.Anything, "user1/key.png").Return("http://url", nil)
+
+	h.UploadPhoto(w, req)
+
+	assert.Equal(t, http.StatusOK, w.Code)
+	mockStorage.AssertExpectations(t)
 }
 
 func TestProfileHandler_Get_NotFound(t *testing.T) {

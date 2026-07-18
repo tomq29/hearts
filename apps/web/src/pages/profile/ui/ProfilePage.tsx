@@ -5,6 +5,7 @@ import { getMyProfile, ProfileCard } from "@/entities/profile";
 import { EditProfileForm } from "@/features/profile/edit-form";
 import { CreateProfileForm } from "@/features/profile/create-form/ui/CreateProfileForm";
 import { getErrorMessage } from "@/shared/lib/error";
+import { api } from "@/shared/api";
 import { useAuthStore } from "@/entities/session";
 
 export const ProfilePage = () => {
@@ -23,7 +24,13 @@ export const ProfilePage = () => {
     retry: false, // Don't retry if 404
   });
 
-  const handleLogout = () => {
+  const handleLogout = async () => {
+    try {
+      // Revoke the refresh token server-side and clear the cookie.
+      await api.post("/api/v1/auth/logout");
+    } catch {
+      // Even if revocation fails, drop the local session.
+    }
     logout(null);
     navigate({ to: "/login" });
   };

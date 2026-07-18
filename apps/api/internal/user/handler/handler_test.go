@@ -46,6 +46,11 @@ func (m *MockUserService) RefreshToken(ctx context.Context, refreshToken string)
 	return args.Get(0).(*service.LoginResponse), args.Error(1)
 }
 
+func (m *MockUserService) Logout(ctx context.Context, refreshToken string) error {
+	args := m.Called(ctx, refreshToken)
+	return args.Error(0)
+}
+
 func (m *MockUserService) GetUserByID(ctx context.Context, id string) (*user.User, error) {
 	args := m.Called(ctx, id)
 	if args.Get(0) == nil {
@@ -199,6 +204,47 @@ func TestLogin_Success(t *testing.T) {
 	assert.True(t, found, "RefreshToken cookie should be set")
 
 	mockService.AssertExpectations(t)
+}
+
+func TestLogout_RevokesAndClearsCookie(t *testing.T) {
+	mockService := new(MockUserService)
+	logger := zap.NewNop()
+	h := handler.NewUserHandler(mockService, nil, logger)
+
+	mockService.On("Logout", mock.Anything, "some-refresh-token").Return(nil)
+
+	req, _ := http.NewRequest("POST", "/auth/logout", nil)
+	req.AddCookie(&http.Cookie{Name: "refreshToken", Value: "some-refresh-token"})
+	rr := httptest.NewRecorder()
+
+	h.Logout(rr, req)
+
+	assert.Equal(t, http.StatusNoContent, rr.Code)
+	// Cookie must be expired in the response.
+	cleared := false
+	for _, c := range rr.Result().Cookies() {
+		if c.Name == "refreshToken" {
+			assert.Empty(t, c.Value)
+			assert.True(t, c.MaxAge < 0, "cookie should be expired")
+			cleared = true
+		}
+	}
+	assert.True(t, cleared, "refreshToken cookie should be cleared")
+	mockService.AssertExpectations(t)
+}
+
+func TestLogout_NoCookieIsStillSuccess(t *testing.T) {
+	mockService := new(MockUserService)
+	logger := zap.NewNop()
+	h := handler.NewUserHandler(mockService, nil, logger)
+
+	req, _ := http.NewRequest("POST", "/auth/logout", nil)
+	rr := httptest.NewRecorder()
+
+	h.Logout(rr, req)
+
+	assert.Equal(t, http.StatusNoContent, rr.Code)
+	mockService.AssertNotCalled(t, "Logout")
 }
 
 func TestLogin_InvalidCredentials(t *testing.T) {

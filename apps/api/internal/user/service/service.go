@@ -26,6 +26,7 @@ type UserService interface {
 	RegisterUser(ctx context.Context, email, username, password string) (*user.User, error)
 	Login(ctx context.Context, email, password string) (*LoginResponse, error)
 	RefreshToken(ctx context.Context, refreshToken string) (*LoginResponse, error)
+	Logout(ctx context.Context, refreshToken string) error
 	GetUserByID(ctx context.Context, id string) (*user.User, error)
 }
 
@@ -149,6 +150,18 @@ func (s *userService) RefreshToken(ctx context.Context, refreshToken string) (*L
 		AccessToken:  newAccessToken,
 		RefreshToken: newRefreshToken,
 	}, nil
+}
+
+// Logout revokes the presented refresh token server-side. It is idempotent:
+// an unknown or malformed token is treated as already logged out.
+func (s *userService) Logout(ctx context.Context, refreshToken string) error {
+	rawToken, err := base64.URLEncoding.DecodeString(refreshToken)
+	if err != nil {
+		return nil
+	}
+	hash := sha256.Sum256(rawToken)
+	refreshTokenHash := base64.URLEncoding.EncodeToString(hash[:])
+	return s.repo.DeleteRefreshToken(ctx, refreshTokenHash)
 }
 
 // GetUserByID retrieves a user by their ID.

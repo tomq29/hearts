@@ -155,6 +155,35 @@ func TestRefreshToken_InvalidBase64(t *testing.T) {
 	mockRepo.AssertNotCalled(t, "GetUserByRefreshToken")
 }
 
+func TestLogout_RevokesStoredHash(t *testing.T) {
+	mockRepo := new(MockUserRepository)
+	authService, err := auth.NewAuthService("test-secret")
+	assert.NoError(t, err)
+	svc := service.NewUserService(mockRepo, authService)
+
+	ctx := context.Background()
+	_, refreshToken, storedHash, _, err := authService.GenerateTokens("user-123")
+	assert.NoError(t, err)
+
+	// Logout must delete exactly the hash that login would have stored.
+	mockRepo.On("DeleteRefreshToken", ctx, storedHash).Return(nil)
+
+	err = svc.Logout(ctx, refreshToken)
+	assert.NoError(t, err)
+	mockRepo.AssertExpectations(t)
+}
+
+func TestLogout_MalformedTokenIsNoop(t *testing.T) {
+	mockRepo := new(MockUserRepository)
+	authService, err := auth.NewAuthService("test-secret")
+	assert.NoError(t, err)
+	svc := service.NewUserService(mockRepo, authService)
+
+	err = svc.Logout(context.Background(), "not!!valid@@base64")
+	assert.NoError(t, err)
+	mockRepo.AssertNotCalled(t, "DeleteRefreshToken")
+}
+
 func TestRegisterUser_RepoError(t *testing.T) {
 	// Arrange
 	mockRepo := new(MockUserRepository)

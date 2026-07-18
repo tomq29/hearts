@@ -236,6 +236,7 @@ func main() {
 	mux.HandleFunc("POST /api/v1/users/register", userHandler.Register)
 	mux.HandleFunc("POST /api/v1/users/login", userHandler.Login)
 	mux.HandleFunc("POST /api/v1/auth/refresh", userHandler.RefreshToken)
+	mux.HandleFunc("POST /api/v1/auth/logout", userHandler.Logout)
 
 	// Protected routes
 	mux.Handle("GET /api/v1/users/me", authMiddleware(http.HandlerFunc(userHandler.Me)))

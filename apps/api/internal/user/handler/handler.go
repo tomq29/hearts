@@ -53,6 +53,36 @@ func NewUserHandler(s service.UserService, as auth.AuthService, l *zap.Logger) *
 	}
 }
 
+// refreshCookiePath covers both /auth/refresh and /auth/logout, so the
+// browser sends the cookie to either endpoint but nowhere else.
+const refreshCookiePath = "/api/v1/auth"
+
+// setRefreshCookie stores the refresh token in a secure, HttpOnly cookie.
+func setRefreshCookie(w http.ResponseWriter, refreshToken string) {
+	http.SetCookie(w, &http.Cookie{
+		Name:     "refreshToken",
+		Value:    refreshToken,
+		Expires:  time.Now().Add(auth.RefreshTokenCookieLifetime),
+		HttpOnly: true,
+		Secure:   true,
+		Path:     refreshCookiePath,
+		SameSite: http.SameSiteLaxMode,
+	})
+}
+
+// clearRefreshCookie expires the refresh token cookie immediately.
+func clearRefreshCookie(w http.ResponseWriter) {
+	http.SetCookie(w, &http.Cookie{
+		Name:     "refreshToken",
+		Value:    "",
+		MaxAge:   -1,
+		HttpOnly: true,
+		Secure:   true,
+		Path:     refreshCookiePath,
+		SameSite: http.SameSiteLaxMode,
+	})
+}
+
 // Register is the handler for user registration.
 // @Summary Register a new user
 // @Description Register a new user with email, username, and password.
@@ -106,16 +136,7 @@ func (h *UserHandler) Register(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	// Set the refresh token in a secure, HttpOnly cookie
-	http.SetCookie(w, &http.Cookie{
-		Name:     "refreshToken",
-		Value:    loginResp.RefreshToken,
-		Expires:  time.Now().Add(auth.RefreshTokenCookieLifetime),
-		HttpOnly: true,
-		Secure:   true,                   // Should be true in production
-		Path:     "/api/v1/auth/refresh", // Make sure this path is correct for your refresh endpoint
-		SameSite: http.SameSiteLaxMode,
-	})
+	setRefreshCookie(w, loginResp.RefreshToken)
 
 	w.Header().Set("Content-Type", "application/json")
 	w.WriteHeader(http.StatusCreated)
@@ -158,16 +179,7 @@ func (h *UserHandler) Login(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	// Set the refresh token in a secure, HttpOnly cookie
-	http.SetCookie(w, &http.Cookie{
-		Name:     "refreshToken",
-		Value:    loginResp.RefreshToken,
-		Expires:  time.Now().Add(auth.RefreshTokenCookieLifetime),
-		HttpOnly: true,
-		Secure:   true,                   // Should be true in production
-		Path:     "/api/v1/auth/refresh", // Make sure this path is correct for your refresh endpoint
-		SameSite: http.SameSiteLaxMode,
-	})
+	setRefreshCookie(w, loginResp.RefreshToken)
 
 	h.logger.Info("User logged in successfully", zap.String("email", input.Email))
 	// Return the access token in the response body
@@ -206,15 +218,7 @@ func (h *UserHandler) RefreshToken(w http.ResponseWriter, r *http.Request) {
 	}
 
 	// 3. Set the new refresh token in the cookie.
-	http.SetCookie(w, &http.Cookie{
-		Name:     "refreshToken",
-		Value:    loginResp.RefreshToken,
-		Expires:  time.Now().Add(auth.RefreshTokenCookieLifetime),
-		HttpOnly: true,
-		Secure:   true,
-		Path:     "/api/v1/auth/refresh",
-		SameSite: http.SameSiteLaxMode,
-	})
+	setRefreshCookie(w, loginResp.RefreshToken)
 
 	h.logger.Info("Token refreshed successfully")
 	// 4. Return the new access token in the response body.
@@ -223,6 +227,25 @@ func (h *UserHandler) RefreshToken(w http.ResponseWriter, r *http.Request) {
 	json.NewEncoder(w).Encode(LoginResponse{
 		AccessToken: loginResp.AccessToken,
 	})
+}
+
+// Logout is the handler for logging out a user.
+// @Summary Logout
+// @Description Revoke the refresh token server-side and clear the cookie. Other devices stay logged in.
+// @Tags auth
+// @Success 204 {string} string "No Content"
+// @Router /auth/logout [post]
+func (h *UserHandler) Logout(w http.ResponseWriter, r *http.Request) {
+	// Idempotent: logging out without a cookie is still a successful logout.
+	if cookie, err := r.Cookie("refreshToken"); err == nil {
+		if err := h.service.Logout(r.Context(), cookie.Value); err != nil {
+			h.logger.Error("Failed to revoke refresh token", zap.Error(err))
+			// Still clear the cookie: the client should end up logged out either way.
+		}
+	}
+
+	clearRefreshCookie(w)
+	w.WriteHeader(http.StatusNoContent)
 }
 
 // Me is the handler for retrieving the current user's profile.

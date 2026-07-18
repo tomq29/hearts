@@ -55,6 +55,21 @@ npm run dev
 - **Notifications**: Async notifications processed via Kafka.
 - **Microservices**: Decoupled Notification Service demonstrating Event-Driven Architecture.
 
+## Authentication
+
+- **Access token**: short-lived JWT (15 min), kept in memory on the frontend
+  (never in localStorage) and sent as `Authorization: Bearer`.
+- **Refresh token**: HttpOnly cookie (7 days), stored hashed in the
+  `refresh_tokens` table — one row per device, so logging in on a new device
+  does not log out the others. Tokens are rotated (single-use) on every refresh.
+- **Session restore**: on page load the frontend exchanges the refresh cookie
+  for a new access token (`POST /api/v1/auth/refresh`), so reloads keep you
+  logged in.
+- **Logout**: `POST /api/v1/auth/logout` revokes the refresh token server-side
+  and clears the cookie; other devices stay logged in.
+- **Rate limiting**: credential endpoints (`/users/login`, `/users/register`)
+  are limited to 5 requests/min per IP (in-memory, per instance).
+
 ## Project Structure
 
 ```

@@ -1,0 +1,77 @@
+name: CI
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+
+jobs:
+  backend:
+    name: Backend (go vet + tests)
+    runs-on: ubuntu-latest
+    services:
+      postgres:
+        image: postgres:15-alpine
+        env:
+          POSTGRES_USER: postgres
+          POSTGRES_PASSWORD: password
+          POSTGRES_DB: hearts
+        ports:
+          - "5433:5432"
+        options: >-
+          --health-cmd "pg_isready -U postgres -d hearts"
+          --health-interval 5s
+          --health-timeout 5s
+          --health-retries 5
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-go@v5
+        with:
+          go-version-file: apps/api/go.mod
+          cache-dependency-path: |
+            apps/api/go.sum
+            apps/notification-service/go.sum
+
+      - name: Migrate test database
+        run: >
+          go run github.com/pressly/goose/v3/cmd/goose@v3.26.0
+          -dir apps/api/cmd/api/migrations
+          postgres "postgres://postgres:password@localhost:5433/hearts?sslmode=disable"
+          up
+
+      - name: Vet
+        run: go vet ./...
+        working-directory: apps/api
+
+      - name: Test (unit + integration against service DB)
+        run: go test ./...
+        working-directory: apps/api
+
+      - name: Build notification-service
+        run: go build ./... && go vet ./...
+        working-directory: apps/notification-service
+
+  frontend:
+    name: Frontend (tsc + eslint)
+    runs-on: ubuntu-latest
+    defaults:
+      run:
+        working-directory: apps/web
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+          cache-dependency-path: apps/web/package-lock.json
+
+      - name: Install
+        run: npm ci
+
+      - name: Typecheck
+        run: npx tsc -b --pretty false
+
+      - name: Lint
+        run: npx eslint .

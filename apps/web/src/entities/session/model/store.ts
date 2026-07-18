@@ -1,5 +1,4 @@
 import { create } from 'zustand'
-import { persist } from 'zustand/middleware'
 
 interface AuthState {
   token: string | null
@@ -7,15 +6,14 @@ interface AuthState {
   isAuthenticated: () => boolean
 }
 
-export const useAuthStore = create<AuthState>()(
-  persist(
-    (set, get) => ({
-      token: null,
-      setToken: (token) => set({ token }),
-      isAuthenticated: () => !!get().token,
-    }),
-    {
-      name: 'auth-storage', // name of the item in the storage (must be unique)
-    },
-  ),
-)
+// The access token lives in memory only: localStorage is readable by any
+// XSS payload, while a page reload can restore the session via the HttpOnly
+// refresh cookie instead (see restoreSession in shared/api).
+export const useAuthStore = create<AuthState>()((set, get) => ({
+  token: null,
+  setToken: (token) => set({ token }),
+  isAuthenticated: () => !!get().token,
+}))
+
+// Drop the token persisted by the previous version of this store.
+localStorage.removeItem('auth-storage')

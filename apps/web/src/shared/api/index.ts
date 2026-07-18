@@ -33,6 +33,18 @@ const refreshAccessToken = async (): Promise<string> => {
   return response.data.accessToken;
 };
 
+// restoreSession recovers the session after a page reload: the access token
+// lives in memory only, so we exchange the HttpOnly refresh cookie for a
+// fresh one. A failure just means the user isn't logged in.
+export const restoreSession = async (): Promise<void> => {
+  try {
+    const token = await refreshAccessToken();
+    useAuthStore.getState().setToken(token);
+  } catch {
+    // No valid refresh cookie — stay logged out.
+  }
+};
+
 // 401s from credential endpoints mean "wrong email/password", not
 // "access token expired" — refreshing won't help there.
 const AUTH_URLS = ["/api/v1/users/login", "/api/v1/users/register"];

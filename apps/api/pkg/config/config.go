@@ -29,6 +29,10 @@ type AppConfig struct {
 // ServerConfig contains HTTP server settings.
 type ServerConfig struct {
 	Address string `mapstructure:"address"`
+	// CORSAllowedOrigins are the browser origins allowed to make
+	// credentialed requests. Env: HEARTS_SERVER_CORS_ALLOWED_ORIGINS
+	// (comma-separated).
+	CORSAllowedOrigins []string `mapstructure:"cors_allowed_origins"`
 }
 
 // DatabaseConfig contains Postgres connection pool settings.
@@ -88,6 +92,10 @@ func Load() (Config, error) {
 	// Defaults
 	v.SetDefault("app.environment", "development")
 	v.SetDefault("server.address", ":8080")
+	v.SetDefault("server.cors_allowed_origins", []string{
+		"http://localhost:5173", // vite dev
+		"http://localhost:4173", // vite preview
+	})
 	v.SetDefault("database.max_connections", 10)
 	v.SetDefault("database.min_connections", 2)
 	v.SetDefault("database.max_conn_lifetime", "1h")
@@ -97,6 +105,10 @@ func Load() (Config, error) {
 	v.SetDefault("storage.access_key_id", "minioadmin")
 	// No default for storage.secret_access_key: secrets must be provided
 	// explicitly via env (HEARTS_STORAGE_SECRET_ACCESS_KEY), never baked in.
+	// The explicit bind is required: AutomaticEnv only resolves keys viper
+	// already knows from a default, config file, or bind — without it,
+	// removing the default silently stops the env var from being read.
+	_ = v.BindEnv("storage.secret_access_key")
 	v.SetDefault("storage.use_ssl", false)
 	v.SetDefault("storage.bucket_name", "hearts-photos")
 	v.SetDefault("storage.location", "us-east-1")
@@ -107,6 +119,9 @@ func Load() (Config, error) {
 	// Explicit environment bindings for commonly overridden keys.
 	_ = v.BindEnv("database.url", "DATABASE_URL")
 	_ = v.BindEnv("auth.jwt_secret", "JWT_SECRET_KEY")
+	// Accept both the prefixed form and the plain KAFKA_BROKERS that
+	// docker-compose passes (and that notification-service also reads).
+	_ = v.BindEnv("kafka.brokers", "HEARTS_KAFKA_BROKERS", "KAFKA_BROKERS")
 
 	if err := v.ReadInConfig(); err != nil {
 		if _, ok := err.(viper.ConfigFileNotFoundError); !ok {
@@ -117,6 +132,9 @@ func Load() (Config, error) {
 	var cfg Config
 	if err := v.Unmarshal(&cfg, viper.DecodeHook(mapstructure.ComposeDecodeHookFunc(
 		mapstructure.StringToTimeDurationHookFunc(),
+		// Lets []string fields (kafka brokers, CORS origins) be set from
+		// a single comma-separated env value.
+		mapstructure.StringToSliceHookFunc(","),
 	))); err != nil {
 		return Config{}, fmt.Errorf("failed to unmarshal configuration: %w", err)
 	}

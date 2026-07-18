@@ -306,7 +306,7 @@ func main() {
 
 	srv := &http.Server{
 		Addr:    cfg.Server.Address,
-		Handler: middleware.CORS(mux),
+		Handler: middleware.CORS(cfg.Server.CORSAllowedOrigins)(mux),
 	}
 
 	go func() {

@@ -95,7 +95,8 @@ func Load() (Config, error) {
 	v.SetDefault("logger.mode", "development")
 	v.SetDefault("storage.endpoint", "localhost:9000")
 	v.SetDefault("storage.access_key_id", "minioadmin")
-	v.SetDefault("storage.secret_access_key", "minioadmin")
+	// No default for storage.secret_access_key: secrets must be provided
+	// explicitly via env (HEARTS_STORAGE_SECRET_ACCESS_KEY), never baked in.
 	v.SetDefault("storage.use_ssl", false)
 	v.SetDefault("storage.bucket_name", "hearts-photos")
 	v.SetDefault("storage.location", "us-east-1")

@@ -233,8 +233,12 @@ func main() {
 		httpSwagger.URL("http://localhost:8080/swagger/doc.json"),
 	))
 
-	mux.HandleFunc("POST /api/v1/users/register", userHandler.Register)
-	mux.HandleFunc("POST /api/v1/users/login", userHandler.Login)
+	// Credential endpoints get a per-IP rate limit against brute-forcing.
+	loginLimiter := middleware.NewRateLimiter(5, time.Minute)
+	registerLimiter := middleware.NewRateLimiter(5, time.Minute)
+
+	mux.Handle("POST /api/v1/users/register", registerLimiter.Middleware(http.HandlerFunc(userHandler.Register)))
+	mux.Handle("POST /api/v1/users/login", loginLimiter.Middleware(http.HandlerFunc(userHandler.Login)))
 	mux.HandleFunc("POST /api/v1/auth/refresh", userHandler.RefreshToken)
 	mux.HandleFunc("POST /api/v1/auth/logout", userHandler.Logout)
 

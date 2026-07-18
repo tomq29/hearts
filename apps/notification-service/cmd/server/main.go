@@ -4,6 +4,7 @@ import (
 	"context"
 	"net/http"
 	"os"
+	"strings"
 
 	"github.com/kisssonik/hearts/apps/notification-service/internal/handler"
 	"github.com/kisssonik/hearts/apps/notification-service/internal/hub"
@@ -21,7 +22,7 @@ func main() {
 	// Initialize Kafka Consumer
 	brokers := []string{"kafka:9092"}
 	if envBrokers := os.Getenv("KAFKA_BROKERS"); envBrokers != "" {
-		brokers = []string{envBrokers}
+		brokers = strings.Split(envBrokers, ",")
 	}
 
 	consumer := kafka.NewConsumer(
@@ -41,8 +42,14 @@ func main() {
 	// Start HTTP Server
 	http.HandleFunc("/ws/notifications", wsHandler.Handle)
 
-	logger.Info("Notification Service running on :8081")
-	if err := http.ListenAndServe(":8081", nil); err != nil {
+	// The compose file passes PORT; default matches its published port.
+	port := os.Getenv("PORT")
+	if port == "" {
+		port = "8081"
+	}
+
+	logger.Info("Notification Service running", zap.String("port", port))
+	if err := http.ListenAndServe(":"+port, nil); err != nil {
 		logger.Fatal("Server failed", zap.Error(err))
 	}
 }

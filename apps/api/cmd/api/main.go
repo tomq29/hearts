@@ -251,7 +251,7 @@ func main() {
 	mux.Handle("POST /api/v1/profiles/upload", authMiddleware(http.HandlerFunc(pHandler.UploadPhoto)))
 	mux.Handle("GET /api/v1/profiles/search", authMiddleware(http.HandlerFunc(pHandler.Search)))
 	mux.Handle("GET /api/v1/profiles/me", authMiddleware(http.HandlerFunc(pHandler.GetMe)))
-	mux.HandleFunc("GET /api/v1/profiles/{userID}", pHandler.Get)
+	mux.Handle("GET /api/v1/profiles/{userID}", authMiddleware(http.HandlerFunc(pHandler.Get)))
 
 	mux.Handle("POST /api/v1/likes", authMiddleware(http.HandlerFunc(lHandler.Like)))
 	mux.Handle("GET /api/v1/matches", authMiddleware(http.HandlerFunc(lHandler.GetMatches)))
@@ -259,7 +259,7 @@ func main() {
 	mux.Handle("GET /api/v1/notifications", authMiddleware(http.HandlerFunc(nHandler.List)))
 
 	mux.Handle("POST /api/v1/reviews", authMiddleware(http.HandlerFunc(rHandler.Create)))
-	mux.HandleFunc("GET /api/v1/users/{userID}/reviews", rHandler.List)
+	mux.Handle("GET /api/v1/users/{userID}/reviews", authMiddleware(http.HandlerFunc(rHandler.List)))
 
 	mux.Handle("GET /api/v1/chats/{otherUserID}/messages", authMiddleware(http.HandlerFunc(cHandler.GetHistory)))
 

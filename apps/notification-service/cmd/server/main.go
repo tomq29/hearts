@@ -37,7 +37,12 @@ func main() {
 	go consumer.Start(context.Background())
 
 	// Initialize WebSocket Handler
-	wsHandler := handler.NewWebSocketHandler(wsHub, logger)
+	// Browser origins allowed to open a notification socket (comma-separated).
+	allowedOrigins := []string{"http://localhost:5173", "http://localhost:4173"}
+	if envOrigins := os.Getenv("CORS_ALLOWED_ORIGINS"); envOrigins != "" {
+		allowedOrigins = strings.Split(envOrigins, ",")
+	}
+	wsHandler := handler.NewWebSocketHandler(wsHub, logger, allowedOrigins)
 
 	// Start HTTP Server
 	http.HandleFunc("/ws/notifications", wsHandler.Handle)

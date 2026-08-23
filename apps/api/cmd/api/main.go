@@ -142,6 +142,10 @@ func main() {
 	wsHub := websocket.NewHub()
 	go wsHub.Run()
 
+	// WebSocket handshakes are not covered by the same-origin policy, so the
+	// upgrader enforces the same origin allowlist the CORS middleware uses.
+	wsUpgrader := websocket.NewUpgrader(cfg.Server.CORSAllowedOrigins)
+
 	ticketStore := websocket.NewTicketStore()
 
 	userRepo := repository.NewUserRepository(dbPool)
@@ -285,7 +289,7 @@ func main() {
 				http.Error(w, "Invalid or expired ticket", http.StatusUnauthorized)
 				return
 			}
-			websocket.ServeWs(wsHub, w, r, userID)
+			websocket.ServeWs(wsHub, wsUpgrader, w, r, userID)
 			return
 		}
 
@@ -301,7 +305,7 @@ func main() {
 			return
 		}
 
-		websocket.ServeWs(wsHub, w, r, claims.UserID)
+		websocket.ServeWs(wsHub, wsUpgrader, w, r, claims.UserID)
 	})
 
 	srv := &http.Server{

@@ -22,12 +22,30 @@ const (
 	maxMessageSize = 512
 )
 
-var upgrader = websocket.Upgrader{
-	ReadBufferSize:  1024,
-	WriteBufferSize: 1024,
-	CheckOrigin: func(r *http.Request) bool {
-		return true // Allow all origins for now
-	},
+// NewUpgrader returns an upgrader that accepts handshakes only from the given
+// browser origins, closing the cross-site WebSocket hijacking vector (the
+// same-origin policy does not apply to WebSocket handshakes, so without this
+// any page could open an authenticated socket against the API).
+//
+// Requests without an Origin header are allowed: browsers always send one, so
+// an absent header means a non-browser client (mobile app, CLI tool) that a
+// malicious page cannot drive.
+func NewUpgrader(allowedOrigins []string) *websocket.Upgrader {
+	allowed := make(map[string]bool, len(allowedOrigins))
+	for _, origin := range allowedOrigins {
+		allowed[origin] = true
+	}
+	return &websocket.Upgrader{
+		ReadBufferSize:  1024,
+		WriteBufferSize: 1024,
+		CheckOrigin: func(r *http.Request) bool {
+			origin := r.Header.Get("Origin")
+			if origin == "" {
+				return true
+			}
+			return allowed[origin]
+		},
+	}
 }
 
 // Client is a middleman between the websocket connection and the hub.
@@ -119,7 +137,7 @@ func (c *Client) writePump() {
 }
 
 // ServeWs handles websocket requests from the peer.
-func ServeWs(hub *Hub, w http.ResponseWriter, r *http.Request, userID string) {
+func ServeWs(hub *Hub, upgrader *websocket.Upgrader, w http.ResponseWriter, r *http.Request, userID string) {
 	conn, err := upgrader.Upgrade(w, r, nil)
 	if err != nil {
 		log.Println(err)

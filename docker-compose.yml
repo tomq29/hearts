@@ -38,6 +38,9 @@ services:
       # kafka:29092 is the internal listener; the 9092 listener advertises
       # itself as localhost, which is unreachable from another container.
       - KAFKA_BROKERS=${KAFKA_BROKERS}
+      # Verifies the API's access tokens on the notification stream. Shared
+      # HS256 secret for now — see TODO.md for the move to asymmetric keys.
+      - JWT_SECRET_KEY=${JWT_SECRET_KEY}
       - PORT=8081
       - CORS_ALLOWED_ORIGINS=${CORS_ALLOWED_ORIGINS:-http://localhost:5173,http://localhost:4173}
 

@@ -38,7 +38,22 @@ func NewProfileRepository(db *pgxpool.Pool) ProfileRepository {
 	return &pgxProfileRepository{db: db}
 }
 
+// orEmpty maps a nil Go slice to an empty Postgres array. The array columns
+// are NOT NULL — "no photos" is an empty list, not a missing value — and
+// mapping Go values onto columns is this layer's job, so no caller has to
+// remember it.
+func orEmpty(s []string) []string {
+	if s == nil {
+		return []string{}
+	}
+	return s
+}
+
 func (r *pgxProfileRepository) Create(ctx context.Context, p *profile.Profile) error {
+	p.Photos = orEmpty(p.Photos)
+	p.SelfDescribedFlaws = orEmpty(p.SelfDescribedFlaws)
+	p.SelfDescribedStrengths = orEmpty(p.SelfDescribedStrengths)
+
 	query := `
 		INSERT INTO profiles (user_id, first_name, bio, photos, self_described_flaws, self_described_strengths, birth_date, gender, height, latitude, longitude)
 		VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11)
@@ -94,6 +109,10 @@ func (r *pgxProfileRepository) GetByUserIDs(ctx context.Context, userIDs []strin
 }
 
 func (r *pgxProfileRepository) Update(ctx context.Context, p *profile.Profile) error {
+	p.Photos = orEmpty(p.Photos)
+	p.SelfDescribedFlaws = orEmpty(p.SelfDescribedFlaws)
+	p.SelfDescribedStrengths = orEmpty(p.SelfDescribedStrengths)
+
 	query := `
 		UPDATE profiles
 		SET first_name = $1, bio = $2, photos = $3, self_described_flaws = $4, self_described_strengths = $5, birth_date = $6, gender = $7, height = $8, latitude = $9, longitude = $10, updated_at = NOW()

@@ -122,3 +122,34 @@ func TestProfileRepository_Update(t *testing.T) {
 	assert.Equal(t, "Jane", fetched.FirstName)
 	assert.Equal(t, "Updated bio", fetched.Bio)
 }
+
+// A profile with no photos must round-trip as an empty slice, not nil: a nil
+// slice marshals to JSON null and crashes clients that index into the array.
+func TestProfileRepository_EmptyArraysRoundTripAsEmptyNotNil(t *testing.T) {
+	if testing.Short() {
+		t.Skip("skipping integration test in short mode")
+	}
+
+	db := setupTestDB(t)
+	defer db.Close()
+
+	repo := repository.NewProfileRepository(db)
+	ctx := context.Background()
+	u := createTestUser(t, db, "empty@example.com", "empty")
+
+	p := &profile.Profile{
+		UserID:                 u.ID,
+		FirstName:              "NoPhotos",
+		Photos:                 []string{},
+		SelfDescribedFlaws:     []string{},
+		SelfDescribedStrengths: []string{},
+	}
+	require.NoError(t, repo.Create(ctx, p))
+
+	got, err := repo.GetByUserID(ctx, u.ID)
+	assert.NoError(t, err)
+	assert.NotNil(t, got.Photos, "nil would serialise as JSON null")
+	assert.NotNil(t, got.SelfDescribedFlaws)
+	assert.NotNil(t, got.SelfDescribedStrengths)
+	assert.Empty(t, got.Photos)
+}

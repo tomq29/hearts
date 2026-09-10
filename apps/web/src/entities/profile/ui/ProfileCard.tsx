@@ -11,7 +11,7 @@ export const ProfileCard = ({ profile }: ProfileCardProps) => {
   return (
     <div className="bg-white rounded-xl shadow-sm overflow-hidden border border-gray-100 max-w-sm mx-auto hover:shadow-md transition-shadow">
       <div className="aspect-[3/4] relative bg-gray-100">
-        {profile.photos[0] ? (
+        {profile.photos?.[0] ? (
           <img
             src={profile.photos[0]}
             alt={profile.firstName}

@@ -42,6 +42,14 @@ func (m *MockProfileService) GetProfileByUserID(ctx context.Context, userID stri
 	return args.Get(0).(*profile.Profile), args.Error(1)
 }
 
+func (m *MockProfileService) GetProfileForViewer(ctx context.Context, viewerID, targetUserID string) (*profile.Profile, error) {
+	args := m.Called(ctx, viewerID, targetUserID)
+	if args.Get(0) == nil {
+		return nil, args.Error(1)
+	}
+	return args.Get(0).(*profile.Profile), args.Error(1)
+}
+
 func (m *MockProfileService) UpdateProfile(ctx context.Context, userID string, input service.UpdateProfileInput) (*profile.Profile, error) {
 	args := m.Called(ctx, userID, input)
 	if args.Get(0) == nil {
@@ -105,15 +113,65 @@ func TestProfileHandler_Get(t *testing.T) {
 
 	req := httptest.NewRequest("GET", "/profiles/user1", nil)
 	req.SetPathValue("userID", "user1")
+	req = req.WithContext(context.WithValue(req.Context(), auth.UserIDKey, "viewer1"))
 	w := httptest.NewRecorder()
 
 	expectedProfile := &profile.Profile{ID: "p1", UserID: "user1", FirstName: "John"}
-	mockService.On("GetProfileByUserID", mock.Anything, "user1").Return(expectedProfile, nil)
+	mockService.On("GetProfileForViewer", mock.Anything, "viewer1", "user1").Return(expectedProfile, nil)
 
 	h.Get(w, req)
 
 	assert.Equal(t, http.StatusOK, w.Code)
 	mockService.AssertExpectations(t)
+}
+
+// The security property itself: a viewer must never receive another user's
+// coordinates, only a coarse band. Asserted on the serialised bytes rather
+// than the struct, because the JSON is what actually leaves the process.
+func TestProfileHandler_Get_NeverSerialisesCoordinates(t *testing.T) {
+	mockService := new(MockProfileService)
+	mockStorage := new(MockStorageProvider)
+	logger := zap.NewNop()
+	h := handler.NewProfileHandler(mockService, mockStorage, logger)
+
+	req := httptest.NewRequest("GET", "/profiles/user1", nil)
+	req.SetPathValue("userID", "user1")
+	req = req.WithContext(context.WithValue(req.Context(), auth.UserIDKey, "viewer1"))
+	w := httptest.NewRecorder()
+
+	lat, lon := 51.4700, -0.4543
+	band := "10–25 km"
+	target := &profile.Profile{
+		ID: "p1", UserID: "user1", FirstName: "John",
+		Latitude: &lat, Longitude: &lon, DistanceBand: &band,
+	}
+	mockService.On("GetProfileForViewer", mock.Anything, "viewer1", "user1").Return(target, nil)
+
+	h.Get(w, req)
+
+	assert.Equal(t, http.StatusOK, w.Code)
+	body := w.Body.String()
+	assert.NotContains(t, body, "latitude")
+	assert.NotContains(t, body, "longitude")
+	assert.NotContains(t, body, "51.47")
+	assert.NotContains(t, body, "-0.4543")
+	assert.Contains(t, body, "10–25 km")
+}
+
+func TestProfileHandler_Get_Unauthenticated(t *testing.T) {
+	mockService := new(MockProfileService)
+	mockStorage := new(MockStorageProvider)
+	logger := zap.NewNop()
+	h := handler.NewProfileHandler(mockService, mockStorage, logger)
+
+	req := httptest.NewRequest("GET", "/profiles/user1", nil)
+	req.SetPathValue("userID", "user1")
+	w := httptest.NewRecorder()
+
+	h.Get(w, req)
+
+	assert.Equal(t, http.StatusUnauthorized, w.Code)
+	mockService.AssertNotCalled(t, "GetProfileForViewer")
 }
 
 func multipartBody(t *testing.T, filename string, content []byte) (*bytes.Buffer, string) {
@@ -181,9 +239,10 @@ func TestProfileHandler_Get_NotFound(t *testing.T) {
 
 	req := httptest.NewRequest("GET", "/profiles/user1", nil)
 	req.SetPathValue("userID", "user1")
+	req = req.WithContext(context.WithValue(req.Context(), auth.UserIDKey, "viewer1"))
 	w := httptest.NewRecorder()
 
-	mockService.On("GetProfileByUserID", mock.Anything, "user1").Return(nil, repository.ErrNotFound)
+	mockService.On("GetProfileForViewer", mock.Anything, "viewer1", "user1").Return(nil, repository.ErrNotFound)
 
 	h.Get(w, req)
 

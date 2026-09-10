@@ -16,6 +16,17 @@ func TestLoad_Defaults(t *testing.T) {
 
 	assert.Equal(t, []string{"kafka:29092"}, cfg.Kafka.Brokers)
 	assert.Equal(t, []string{"http://localhost:5173", "http://localhost:4173"}, cfg.Server.CORSAllowedOrigins)
+	assert.Equal(t, []string{"5", "10", "25", "50"}, cfg.Profile.DistanceBands)
+}
+
+func TestLoad_DistanceBandsFromEnv(t *testing.T) {
+	t.Setenv("JWT_SECRET_KEY", "test-secret")
+	t.Setenv("HEARTS_PROFILE_DISTANCE_BANDS", "2,10,50")
+
+	cfg, err := config.Load()
+	require.NoError(t, err)
+
+	assert.Equal(t, []string{"2", "10", "50"}, cfg.Profile.DistanceBands)
 }
 
 func TestLoad_EnvOverridesWithCommaSeparatedLists(t *testing.T) {

@@ -23,6 +23,7 @@ import (
 	chatRepo "github.com/kisssonik/hearts/internal/chat/repository"
 	chatService "github.com/kisssonik/hearts/internal/chat/service"
 
+	"github.com/kisssonik/hearts/internal/profile"
 	profileHandler "github.com/kisssonik/hearts/internal/profile/handler"
 	profileRepo "github.com/kisssonik/hearts/internal/profile/repository"
 	profileService "github.com/kisssonik/hearts/internal/profile/service"
@@ -152,8 +153,15 @@ func main() {
 	userService := service.NewUserService(userRepo, authService)
 	userHandler := handler.NewUserHandler(userService, authService, appLogger)
 
+	// Profiles report a coarse distance band instead of coordinates; the
+	// granularity is deployment config, so a bad value must fail at startup.
+	bander, err := profile.ParseBands(cfg.Profile.DistanceBands)
+	if err != nil {
+		appLogger.Fatal("Invalid distance band configuration", zap.Error(err))
+	}
+
 	pRepo := profileRepo.NewProfileRepository(dbPool)
-	pService := profileService.NewProfileService(pRepo)
+	pService := profileService.NewProfileService(pRepo, bander)
 	pHandler := profileHandler.NewProfileHandler(pService, storageProvider, appLogger)
 
 	nRepo := notificationRepo.NewNotificationRepository(dbPool)

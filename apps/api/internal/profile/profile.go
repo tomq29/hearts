@@ -14,11 +14,15 @@ type Profile struct {
 	BirthDate              *time.Time `json:"birthDate" db:"birth_date"`
 	Gender                 *string    `json:"gender" db:"gender"`
 	Height                 *int       `json:"height" db:"height"`
-	Latitude               *float64   `json:"latitude" db:"latitude"`
-	Longitude              *float64   `json:"longitude" db:"longitude"`
-	CreatedAt              time.Time  `json:"createdAt" db:"created_at"`
-	UpdatedAt              time.Time  `json:"updatedAt" db:"updated_at"`
+	// Never serialised: exposing a user's exact position lets anyone who can
+	// see the profile locate them. Other users get DistanceBand instead.
+	Latitude  *float64  `json:"-" db:"latitude"`
+	Longitude *float64  `json:"-" db:"longitude"`
+	CreatedAt time.Time `json:"createdAt" db:"created_at"`
+	UpdatedAt time.Time `json:"updatedAt" db:"updated_at"`
 
 	// Enriched fields
 	InteractionType *string `json:"interactionType,omitempty" db:"interaction_type"` // "like", "pass", or null
+	// Coarse distance from the viewer, e.g. "5–10 km". Never the raw position.
+	DistanceBand *string `json:"distanceBand,omitempty" db:"-"`
 }

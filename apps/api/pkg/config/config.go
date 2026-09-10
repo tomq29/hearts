@@ -19,6 +19,7 @@ type Config struct {
 	Logger   LoggerConfig   `mapstructure:"logger"`
 	Storage  StorageConfig  `mapstructure:"storage"`
 	Kafka    KafkaConfig    `mapstructure:"kafka"`
+	Profile  ProfileConfig  `mapstructure:"profile"`
 }
 
 // AppConfig captures application-wide settings.
@@ -71,6 +72,16 @@ type KafkaConfig struct {
 	GroupID string   `mapstructure:"group_id"`
 }
 
+// ProfileConfig contains profile presentation settings.
+type ProfileConfig struct {
+	// DistanceBands are the band thresholds in kilometres, ascending. Profiles
+	// report a band ("5–10 km") rather than a position, and the granularity is
+	// deployment configuration: a dense city may want finer buckets than a
+	// sparse region.
+	// Env: HEARTS_PROFILE_DISTANCE_BANDS (comma-separated).
+	DistanceBands []string `mapstructure:"distance_bands"`
+}
+
 // Load reads configuration using Viper, applying sane defaults and environment overrides.
 func Load() (Config, error) {
 	v := viper.New()
@@ -96,6 +107,7 @@ func Load() (Config, error) {
 		"http://localhost:5173", // vite dev
 		"http://localhost:4173", // vite preview
 	})
+	v.SetDefault("profile.distance_bands", []string{"5", "10", "25", "50"})
 	v.SetDefault("database.max_connections", 10)
 	v.SetDefault("database.min_connections", 2)
 	v.SetDefault("database.max_conn_lifetime", "1h")

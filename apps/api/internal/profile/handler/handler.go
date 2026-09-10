@@ -230,15 +230,23 @@ func (h *ProfileHandler) GetMe(w http.ResponseWriter, r *http.Request) {
 // @Failure 400 {string} string "User ID required"
 // @Failure 404 {string} string "Profile not found"
 // @Failure 500 {string} string "Internal server error"
+// @Security ApiKeyAuth
 // @Router /profiles/{userID} [get]
 func (h *ProfileHandler) Get(w http.ResponseWriter, r *http.Request) {
+	viewerID, ok := r.Context().Value(auth.UserIDKey).(string)
+	if !ok {
+		http.Error(w, "Unauthorized", http.StatusUnauthorized)
+		return
+	}
+
 	userID := r.PathValue("userID")
 	if userID == "" {
 		http.Error(w, "User ID required", http.StatusBadRequest)
 		return
 	}
 
-	p, err := h.service.GetProfileByUserID(r.Context(), userID)
+	// Viewer-aware: returns a coarse distance band instead of coordinates.
+	p, err := h.service.GetProfileForViewer(r.Context(), viewerID, userID)
 	if err != nil {
 		if errors.Is(err, repository.ErrNotFound) {
 			http.Error(w, "Profile not found", http.StatusNotFound)

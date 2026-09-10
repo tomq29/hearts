@@ -14,6 +14,7 @@ var ErrProfileAlreadyExists = errors.New("profile already exists")
 type ProfileService interface {
 	CreateProfile(ctx context.Context, userID string, input CreateProfileInput) (*profile.Profile, error)
 	GetProfileByUserID(ctx context.Context, userID string) (*profile.Profile, error)
+	GetProfileForViewer(ctx context.Context, viewerID, targetUserID string) (*profile.Profile, error)
 	UpdateProfile(ctx context.Context, userID string, input UpdateProfileInput) (*profile.Profile, error)
 	SearchProfiles(ctx context.Context, userID string, params SearchParams) ([]*profile.Profile, error)
 }
@@ -54,11 +55,12 @@ type UpdateProfileInput struct {
 }
 
 type profileService struct {
-	repo repository.ProfileRepository
+	repo   repository.ProfileRepository
+	bander *profile.Bander
 }
 
-func NewProfileService(repo repository.ProfileRepository) ProfileService {
-	return &profileService{repo: repo}
+func NewProfileService(repo repository.ProfileRepository, bander *profile.Bander) ProfileService {
+	return &profileService{repo: repo, bander: bander}
 }
 
 func (s *profileService) CreateProfile(ctx context.Context, userID string, input CreateProfileInput) (*profile.Profile, error) {
@@ -93,6 +95,49 @@ func (s *profileService) CreateProfile(ctx context.Context, userID string, input
 
 func (s *profileService) GetProfileByUserID(ctx context.Context, userID string) (*profile.Profile, error) {
 	return s.repo.GetByUserID(ctx, userID)
+}
+
+// GetProfileForViewer returns someone else's profile as that viewer may see it:
+// coordinates are never serialised, so a coarse distance band takes their place.
+// Kept separate from GetProfileByUserID, which serves the caller their own
+// profile and should return everything.
+func (s *profileService) GetProfileForViewer(ctx context.Context, viewerID, targetUserID string) (*profile.Profile, error) {
+	target, err := s.repo.GetByUserID(ctx, targetUserID)
+	if err != nil {
+		return nil, err
+	}
+
+	viewer, err := s.repo.GetByUserID(ctx, viewerID)
+	if err != nil {
+		// A viewer without a profile still gets to read others, just without
+		// a distance to compare against.
+		if errors.Is(err, repository.ErrNotFound) {
+			return target, nil
+		}
+		return nil, err
+	}
+
+	s.attachDistanceBand(viewer, target)
+	return target, nil
+}
+
+// attachDistanceBand labels how far target is from viewer. Profiles missing
+// either coordinate are left unlabelled, so omitempty drops the field.
+func (s *profileService) attachDistanceBand(viewer, target *profile.Profile) {
+	if viewer == nil || target == nil {
+		return
+	}
+	if viewer.Latitude == nil || viewer.Longitude == nil ||
+		target.Latitude == nil || target.Longitude == nil {
+		return
+	}
+	if viewer.UserID == target.UserID {
+		return
+	}
+
+	km := profile.DistanceKM(*viewer.Latitude, *viewer.Longitude, *target.Latitude, *target.Longitude)
+	band := s.bander.Band(km)
+	target.DistanceBand = &band
 }
 
 func (s *profileService) UpdateProfile(ctx context.Context, userID string, input UpdateProfileInput) (*profile.Profile, error) {
@@ -145,17 +190,28 @@ func (s *profileService) SearchProfiles(ctx context.Context, userID string, para
 		return nil, err
 	}
 
-	// If user has no location, they can't search by radius
-	if params.RadiusKM != nil && (currentUserProfile.Latitude == nil || currentUserProfile.Longitude == nil) {
-		return nil, errors.New("user location not set")
+	// A radius filter needs the viewer's own location. Without it, drop the
+	// filter rather than failing: a filter that cannot apply should not empty
+	// the feed.
+	radius := params.RadiusKM
+	if currentUserProfile.Latitude == nil || currentUserProfile.Longitude == nil {
+		radius = nil
 	}
 
-	return s.repo.Search(ctx, currentUserProfile, repository.SearchParams{
+	results, err := s.repo.Search(ctx, currentUserProfile, repository.SearchParams{
 		MinAge:    params.MinAge,
 		MaxAge:    params.MaxAge,
-		RadiusKM:  params.RadiusKM,
+		RadiusKM:  radius,
 		Gender:    params.Gender,
 		MinHeight: params.MinHeight,
 		MaxHeight: params.MaxHeight,
 	})
+	if err != nil {
+		return nil, err
+	}
+
+	for _, p := range results {
+		s.attachDistanceBand(currentUserProfile, p)
+	}
+	return results, nil
 }

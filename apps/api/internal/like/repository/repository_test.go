@@ -24,7 +24,7 @@ func setupTestDB(t *testing.T) *pgxpool.Pool {
 		t.Skipf("skipping integration test: database unavailable (run docker-compose up): %v", err)
 	}
 
-	_, err = pool.Exec(context.Background(), "TRUNCATE TABLE likes, users CASCADE")
+	_, err = pool.Exec(context.Background(), "TRUNCATE TABLE matches, likes, users CASCADE")
 	require.NoError(t, err)
 
 	return pool
@@ -80,4 +80,39 @@ func TestLike_Integration(t *testing.T) {
 	matches, err := repo.GetMatches(ctx, u1.ID)
 	assert.NoError(t, err)
 	assert.Contains(t, matches, u2.ID)
+}
+
+func TestCreateMatch_Integration(t *testing.T) {
+	if testing.Short() {
+		t.Skip("skipping integration test in short mode")
+	}
+
+	db := setupTestDB(t)
+	defer db.Close()
+
+	repo := repository.NewLikeRepository(db)
+	ctx := context.Background()
+
+	u1 := createTestUser(t, db, "m1@example.com", "m1")
+	u2 := createTestUser(t, db, "m2@example.com", "m2")
+
+	// First record of the pair wins and is the one that may notify
+	created, err := repo.CreateMatch(ctx, u1.ID, u2.ID)
+	assert.NoError(t, err)
+	assert.True(t, created)
+
+	// The pair's second match-check must not create another row
+	created, err = repo.CreateMatch(ctx, u1.ID, u2.ID)
+	assert.NoError(t, err)
+	assert.False(t, created)
+
+	// Reversed order is the same pair, so it is also suppressed
+	created, err = repo.CreateMatch(ctx, u2.ID, u1.ID)
+	assert.NoError(t, err)
+	assert.False(t, created)
+
+	var count int
+	err = db.QueryRow(ctx, "SELECT COUNT(*) FROM matches").Scan(&count)
+	assert.NoError(t, err)
+	assert.Equal(t, 1, count)
 }

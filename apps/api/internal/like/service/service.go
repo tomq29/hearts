@@ -93,10 +93,25 @@ func (s *likeService) ProcessMatchCheck(ctx context.Context, fromUserID, targetI
 	if err != nil {
 		return err
 	}
-	if isMatch {
-		return s.notificationService.NotifyMatch(ctx, fromUserID, targetID)
+	if !isMatch {
+		return nil
 	}
-	return nil
+
+	// Both match-check messages for a pair find a mutual like, so without this
+	// guard NotifyMatch runs twice. Only the insert that actually created a row
+	// notifies.
+	created, err := s.repo.CreateMatch(ctx, fromUserID, targetID)
+	if err != nil {
+		return err
+	}
+	if !created {
+		s.logger.Info("Match already recorded, skipping duplicate notification",
+			zap.String("fromUserID", fromUserID),
+			zap.String("targetID", targetID))
+		return nil
+	}
+
+	return s.notificationService.NotifyMatch(ctx, fromUserID, targetID)
 }
 
 func (s *likeService) GetMatches(ctx context.Context, userID string) ([]*profile.Profile, error) {

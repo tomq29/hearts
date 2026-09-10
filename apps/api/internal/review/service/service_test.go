@@ -44,6 +44,11 @@ func (m *MockLikeRepository) HasMutualLike(ctx context.Context, user1ID, user2ID
 	return args.Bool(0), args.Error(1)
 }
 
+func (m *MockLikeRepository) CreateMatch(ctx context.Context, user1ID, user2ID string) (bool, error) {
+	args := m.Called(ctx, user1ID, user2ID)
+	return args.Bool(0), args.Error(1)
+}
+
 func (m *MockLikeRepository) GetMatches(ctx context.Context, userID string) ([]string, error) {
 	args := m.Called(ctx, userID)
 	return args.Get(0).([]string), args.Error(1)

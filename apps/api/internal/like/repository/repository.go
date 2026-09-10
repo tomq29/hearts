@@ -10,6 +10,7 @@ import (
 type LikeRepository interface {
 	Upsert(ctx context.Context, l *like.Like) error
 	HasMutualLike(ctx context.Context, user1ID, user2ID string) (bool, error)
+	CreateMatch(ctx context.Context, user1ID, user2ID string) (bool, error)
 	GetMatches(ctx context.Context, userID string) ([]string, error)
 }
 
@@ -49,6 +50,22 @@ func (r *pgxLikeRepository) HasMutualLike(ctx context.Context, user1ID, user2ID 
 		return false, err
 	}
 	return count > 0, nil
+}
+
+// CreateMatch records that the pair matched, ordering the ids so each pair has
+// exactly one row. Returns false when the match was already recorded — that is
+// what makes match notifications idempotent.
+func (r *pgxLikeRepository) CreateMatch(ctx context.Context, user1ID, user2ID string) (bool, error) {
+	query := `
+		INSERT INTO matches (user_a, user_b)
+		VALUES (LEAST($1::uuid, $2::uuid), GREATEST($1::uuid, $2::uuid))
+		ON CONFLICT (user_a, user_b) DO NOTHING
+	`
+	tag, err := r.db.Exec(ctx, query, user1ID, user2ID)
+	if err != nil {
+		return false, err
+	}
+	return tag.RowsAffected() > 0, nil
 }
 
 func (r *pgxLikeRepository) GetMatches(ctx context.Context, userID string) ([]string, error) {

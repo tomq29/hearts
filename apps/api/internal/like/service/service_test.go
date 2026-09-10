@@ -29,6 +29,11 @@ func (m *MockLikeRepository) HasMutualLike(ctx context.Context, user1ID, user2ID
 	return args.Bool(0), args.Error(1)
 }
 
+func (m *MockLikeRepository) CreateMatch(ctx context.Context, user1ID, user2ID string) (bool, error) {
+	args := m.Called(ctx, user1ID, user2ID)
+	return args.Bool(0), args.Error(1)
+}
+
 func (m *MockLikeRepository) GetMatches(ctx context.Context, userID string) ([]string, error) {
 	args := m.Called(ctx, userID)
 	return args.Get(0).([]string), args.Error(1)
@@ -183,12 +188,31 @@ func TestLikeService_ProcessMatchCheck(t *testing.T) {
 		s := service.NewLikeService(mockRepo, mockProfileRepo, mockNotifService, mockProducer, zap.NewNop())
 
 		mockRepo.On("HasMutualLike", ctx, fromID, toID).Return(true, nil)
+		mockRepo.On("CreateMatch", ctx, fromID, toID).Return(true, nil)
 		mockNotifService.On("NotifyMatch", ctx, fromID, toID).Return(nil)
 
 		err := s.ProcessMatchCheck(ctx, fromID, toID)
 		assert.NoError(t, err)
 		mockRepo.AssertExpectations(t)
 		mockNotifService.AssertExpectations(t)
+	})
+
+	// The pair's second match-check message also finds a mutual like; the
+	// match row already exists, so it must not notify again.
+	t.Run("Match already recorded does not notify twice", func(t *testing.T) {
+		mockRepo := new(MockLikeRepository)
+		mockProfileRepo := new(MockProfileRepository)
+		mockNotifService := new(MockNotificationService)
+		mockProducer := new(MockProducer)
+		s := service.NewLikeService(mockRepo, mockProfileRepo, mockNotifService, mockProducer, zap.NewNop())
+
+		mockRepo.On("HasMutualLike", ctx, toID, fromID).Return(true, nil)
+		mockRepo.On("CreateMatch", ctx, toID, fromID).Return(false, nil)
+
+		err := s.ProcessMatchCheck(ctx, toID, fromID)
+		assert.NoError(t, err)
+		mockRepo.AssertExpectations(t)
+		mockNotifService.AssertNotCalled(t, "NotifyMatch")
 	})
 
 	t.Run("No mutual like, no notification", func(t *testing.T) {

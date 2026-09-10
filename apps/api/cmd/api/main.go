@@ -240,6 +240,17 @@ func main() {
 		w.Write([]byte("OK"))
 	})
 
+	// Client configuration. Serves the values the frontend would otherwise have
+	// to hardcode — currently the distance band thresholds, so the client's
+	// distance filter cannot drift away from the bands the server reports.
+	// Public: it contains nothing user-specific.
+	mux.HandleFunc("GET /api/v1/config", func(w http.ResponseWriter, r *http.Request) {
+		w.Header().Set("Content-Type", "application/json")
+		json.NewEncoder(w).Encode(map[string]any{
+			"distanceBands": bander.Thresholds(),
+		})
+	})
+
 	// Swagger
 	mux.Handle("GET /swagger/", httpSwagger.Handler(
 		httpSwagger.URL("http://localhost:8080/swagger/doc.json"),

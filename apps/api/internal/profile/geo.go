@@ -69,6 +69,15 @@ func ParseBands(values []string) (*Bander, error) {
 	return NewBander(thresholds)
 }
 
+// Thresholds returns the configured band boundaries in kilometres. The client
+// builds its distance filter from these so its options cannot drift away from
+// the bands the server actually reports.
+func (b *Bander) Thresholds() []float64 {
+	out := make([]float64, len(b.thresholds))
+	copy(out, b.thresholds)
+	return out
+}
+
 // Band labels a distance. Labels are generated from the thresholds, so
 // changing the configuration changes the buckets with no code change:
 // {5,10,25} yields "< 5 km", "5–10 km", "10–25 km", "25+ km".

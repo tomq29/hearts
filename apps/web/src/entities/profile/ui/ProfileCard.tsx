@@ -29,6 +29,9 @@ export const ProfileCard = ({ profile }: ProfileCardProps) => {
           {profile.height && (
             <p className="text-sm opacity-90">{profile.height} cm</p>
           )}
+          {profile.distanceBand && (
+            <p className="text-sm opacity-90">{profile.distanceBand} away</p>
+          )}
         </div>
       </div>
 

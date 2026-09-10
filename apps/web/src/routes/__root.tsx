@@ -1,6 +1,7 @@
 import { createRootRoute, Link, Outlet } from "@tanstack/react-router";
 import { TanStackRouterDevtools } from "@tanstack/react-router-devtools";
 import { useAuthStore } from "@/entities/session";
+import { NotificationToaster } from "@/features/notifications";
 
 export const Route = createRootRoute({
   component: RootComponent,
@@ -67,6 +68,7 @@ function RootComponent() {
       <div className="p-2">
         <Outlet />
       </div>
+      {isAuthenticated && <NotificationToaster />}
       <TanStackRouterDevtools position="bottom-right" />
     </>
   );

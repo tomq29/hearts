@@ -48,8 +48,10 @@ jobs:
         run: go test ./...
         working-directory: apps/api
 
-      - name: Build notification-service
-        run: go build ./... && go vet ./...
+      - name: Vet + test notification-service
+        # -race: the hub is shared between the Kafka consumer and every open
+        # stream, and concurrent map access there was a real bug before.
+        run: go vet ./... && go test -race ./...
         working-directory: apps/notification-service
 
   frontend:

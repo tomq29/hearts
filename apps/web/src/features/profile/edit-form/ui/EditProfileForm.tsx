@@ -5,6 +5,7 @@ import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { useNavigate } from "@tanstack/react-router";
 import { uploadPhoto, PHOTO_ACCEPT, PHOTO_RULES_HINT } from "@/shared/api";
 import { getErrorMessage } from "@/shared/lib/error";
+import { useGeolocation } from "@/shared/lib/hooks/useGeolocation";
 import {
   profileSchema,
   type ProfileFormSchema,
@@ -59,6 +60,15 @@ export const EditProfileForm = () => {
   }, [profile, reset]);
 
   const photos = watch("photos");
+  const latitude = watch("latitude");
+  const geo = useGeolocation();
+
+  const handleUseMyLocation = () => {
+    geo.request(({ latitude, longitude }) => {
+      setValue("latitude", latitude);
+      setValue("longitude", longitude);
+    });
+  };
 
   const handleFileChange = async (e: React.ChangeEvent<HTMLInputElement>) => {
     if (!e.target.files || e.target.files.length === 0) return;
@@ -288,6 +298,32 @@ export const EditProfileForm = () => {
           />
           {errors.bio && (
             <p className="text-red-500 text-xs mt-1">{errors.bio.message}</p>
+          )}
+        </div>
+
+        <div>
+          <label className="block text-sm font-medium text-gray-700 mb-1">
+            Location
+          </label>
+          <button
+            type="button"
+            onClick={handleUseMyLocation}
+            disabled={geo.isLocating}
+            className="px-4 py-2 border border-gray-300 rounded-lg text-sm font-medium hover:border-pink-500 hover:text-pink-600 transition disabled:opacity-50"
+          >
+            {geo.isLocating
+              ? "Getting location..."
+              : latitude
+                ? "Update my location"
+                : "Use my location"}
+          </button>
+          <p className="text-xs text-gray-400 mt-1">
+            {latitude
+              ? "Location set. Others only see a rough distance, never your exact position."
+              : "Optional. Lets you filter by distance and shows others roughly how far away you are."}
+          </p>
+          {geo.error && (
+            <p className="text-red-500 text-xs mt-1">{geo.error}</p>
           )}
         </div>
 

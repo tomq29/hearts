@@ -11,6 +11,10 @@ export const profileSchema = z.object({
       message: "Invalid date",
     }),
   photos: z.array(z.string()).min(1, "At least one photo is required"),
+  // Optional: set by "Use my location". Other users only ever see a coarse
+  // distance band derived from these, never the coordinates themselves.
+  latitude: z.number().optional(),
+  longitude: z.number().optional(),
 });
 
 export type ProfileFormSchema = z.infer<typeof profileSchema>;

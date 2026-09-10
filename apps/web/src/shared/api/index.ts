@@ -89,6 +89,18 @@ api.interceptors.response.use(
   }
 );
 
+interface ClientConfig {
+  /** Distance band thresholds in km, ascending. Configured server-side. */
+  distanceBands: number[];
+}
+
+// Fetched rather than hardcoded so the distance filter always offers the same
+// steps the server actually bands by.
+export const getClientConfig = async (): Promise<ClientConfig> => {
+  const response = await api.get<ClientConfig>("/api/v1/config");
+  return response.data;
+};
+
 // Mirror of the backend upload rules (see profile handler): keep in sync.
 export const PHOTO_MAX_SIZE_MB = 10;
 export const PHOTO_ALLOWED_TYPES = ["image/jpeg", "image/png", "image/webp"];

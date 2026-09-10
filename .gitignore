@@ -4,6 +4,8 @@ dist/
 *.exe
 *.app
 main
+# `go build ./cmd/api` output
+/apps/api/api
 
 # Logs
 *.log
@@ -44,3 +46,7 @@ test_*.txt
 
 # Personal notes
 TODO.md
+
+# Claude Code
+CLAUDE.md
+.claude/

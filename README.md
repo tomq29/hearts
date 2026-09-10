@@ -8,13 +8,14 @@ A modern dating application built with microservices architecture, real-time fea
 
 - **Backend**: Go 1.24
   - **API Service** (`apps/api`): Main REST API, WebSocket (Chat), Clean Architecture.
-  - **Notification Service** (`apps/notification-service`): Microservice for handling system notifications via Kafka and WebSockets.
+  - **Notification Service** (`apps/notification-service`): Microservice that consumes notifications from Kafka and pushes them to browsers over an authenticated Server-Sent Events stream.
 - **Frontend**: React (Vite, TypeScript, TanStack Query).
 - **Messaging**: Kafka (Event bus for inter-service communication).
 - **Database**: PostgreSQL (Store), Redis (Cache - Optional/Planned), MinIO (Object Storage).
 - **Communication**:
   - HTTP/REST
-  - WebSocket (Real-time Chat & Notifications)
+  - WebSocket (Real-time Chat)
+  - Server-Sent Events (Live Notifications)
   - Kafka (Async Events)
 
 ## Prerequisites
@@ -54,7 +55,7 @@ npm run dev
 
 - **Real-time Chat**: WebSocket-based secure chat with Ticket System authentication.
 - **Typing Indicators**: Real-time "User is typing..." updates.
-- **Notifications**: Async notifications processed via Kafka.
+- **Notifications**: Async notifications processed via Kafka, delivered live over SSE.
 - **Microservices**: Decoupled Notification Service demonstrating Event-Driven Architecture.
 
 ## Authentication

@@ -1,5 +1,7 @@
 # Hearts Dating App
 
+[![CI](https://github.com/tomq29/hearts/actions/workflows/ci.yml/badge.svg)](https://github.com/tomq29/hearts/actions/workflows/ci.yml)
+
 A modern dating application built with microservices architecture, real-time features, and event-driven communication.
 
 ## Architecture
